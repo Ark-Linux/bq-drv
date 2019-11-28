@@ -13,6 +13,8 @@
 #define BQ_I2C_ADDR        0x6B
 int fd;
 
+
+
 int i2c_open()
 {
     int ret;
@@ -155,22 +157,22 @@ int bq25703a_charge_function_init()
 int set_charge_voltage_current()
 {
     unsigned char val[2]= {0};
- 
-    little_to_big(0X3070, val);// voltage
- 
+
+    little_to_big(0X3070, val);// voltage 12400 mV
+
     if(1 == bq25703a_i2c_write(BQ_I2C_ADDR, 0x04, val, sizeof(val)))
     {
         return 1;
     }
 
-    
-            little_to_big(0X0B80, val);// 2944 mA
- 
+
+    little_to_big(0X0B80, val);// current 2944 mA
+
     if(1 == bq25703a_i2c_write(BQ_I2C_ADDR, 0x02, val, sizeof(val)))
     {
         return 1;
     }
-	
+
     return 0;
 }
 
@@ -299,41 +301,82 @@ void little_to_big(short int val, unsigned char *res_val)
     res_val[1] = val >> 8; //high 8-bit
 }
 
-void *gpiox_irq_thread_function(void *arg)
+void *bq25703a_chgok_irq_thread(void *arg)
 {
     struct thread_argument *arg_thread;
     arg_thread = ( struct thread_argument * )arg;
+    char file_path[64]= {0};
 
-    get_irq_gpiox(arg_thread->pin_number);
-    pthread_exit("Thank you for the CPU time");
+    int pin_number = arg_thread->pin_number;
+    register_gpiox(pin_number);
+    set_direction(pin_number, "in");
+    set_edge(pin_number, "both");
+
+    sprintf(file_path, "/sys/class/gpio/gpio%d/value", pin_number);
+    int fd = open(file_path, O_RDONLY);
+    if(fd < 0)
+    {
+        printf("open %s failed!\n", file_path);
+        return -1;
+    }
+
+    struct pollfd fds[1];
+    fds[0].fd=fd;
+    fds[0].events=POLLPRI;
+
+    while(1)
+    {
+        if(poll(fds, 1, 0) == -1) //the last argumenxt is timeout , 0->不阻塞, x->x毫秒
+        {
+            perror("poll failed!\n");
+            return -1;
+        }
+        if(fds[0].revents&POLLPRI)
+        {
+            /*
+            if(lseek(fd, 0, SEEK_SET) == -1)
+            {
+                perror("lseek failed!\n");
+                return -1;
+            }
+            char buffer[2];
+            int len;
+            if((len=read(fd, buffer, sizeof(buffer))) == -1)
+            {
+                perror("read failed!\n");
+                return -1;
+            }
+            buffer[len]=0;
+            printf("\n\n\n %d thread irq read: %s\n\n\n", pin_number, buffer);
+            //do something
+            */
+            set_charge_voltage_current();
+            //printf("\n\n\n CHARGE_FUNCTION \n\n\n");
+
+        }
+
+    }
+    unregister_gpiox(pin_number);
+    pthread_exit("bq25703a_chgok_irq_thread exit");
 }
 
 int main(void)
 {
-    int voltage=13;
-    int current_mA=2;
-    int bs_buf[2]= {0};
     pthread_t thread1;
 
     i2c_open();
-
-
-
     bq25703a_charge_function_init();
-
     //start irq thread
     struct thread_argument arg1;
-    arg1.pin_number = 36;
-
-
-    pthread_create( &thread1, NULL, gpiox_irq_thread_function, (void*)&arg1 );
+    arg1.pin_number = CHG_OK_PIN;
+    pthread_create( &thread1, NULL, bq25703a_chgok_irq_thread, (void*)&arg1 );
 
     while(1)
     {
         //sleep(2);
-        //bq25703a_battery_system_vol_read( bs_buf );
-        //printf("battert voltage = %d\nsystem voltage = %d\n",bs_buf[0], bs_buf[1]);
+        //printf("running\n");
     }
+
     return 0;
 }
 
