@@ -22,33 +22,38 @@
 
 
 
-#define CHARGE_VOL_1	11	// 11008 mv
-#define CHARGE_VOL_2	12	// 12000 mv
-#define CHARGE_VOL_3	13	// 13008 mv
-#define CHARGE_CUR_1	1	// 1024 mA 
-#define CHARGE_CUR_2	2	// 2048 mA
-#define CHARGE_CUR_3	3	// 3008 mA
+#define CHARGE_VOL_1    11  // 11008 mv
+#define CHARGE_VOL_2    12  // 12000 mv
+#define CHARGE_VOL_3    13  // 13008 mv
+#define CHARGE_CUR_1    1   // 1024 mA 
+#define CHARGE_CUR_2    2   // 2048 mA
+#define CHARGE_CUR_3    3   // 3008 mA
 
 
-#define OTG_VOL_1	5	// 4992 mv
-#define OTG_VOL_2	9	// 9024 mv
-#define OTG_VOL_3	15	// 15040 mv
-#define OTG_CUR_1	1	// 1024 mA
-#define OTG_CUR_2	2	//  2048 mA
-#define OTG_CUR_3	3	// 3008 mA
+#define OTG_VOL_1   5   // 4992 mv
+#define OTG_VOL_2   9   // 9024 mv
+#define OTG_VOL_3   15  // 15040 mv
+#define OTG_CUR_1   1   // 1024 mA
+#define OTG_CUR_2   2   //  2048 mA
+#define OTG_CUR_3   3   // 3008 mA
 
 //do_what
 #define CHARGE_FUNCTION 0
-#define OTG_FUNCTION 	1
+#define OTG_FUNCTION    1
 
-// 参数结构体 
+#define CURRENT_MA	0X0800	//2048 mA
+#define VOLTAGE		0X04D0	//1232 mV
+
+#define CHG_OK_PIN		36
+
+// 参数结构体
 struct thread_argument
 {
-  int pin_number;
-  int do_what;
-  int voltage;
-  int current_mA;
-  //char string[30];
+    int pin_number;
+    int do_what;
+    int voltage;
+    int current_mA;
+    //char string[30];
 };
 
 
@@ -65,8 +70,8 @@ int bq25703a_charge_function_init(int voltage, int current_mA);
 int set_charge_voltage_current(int voltage, int current_mA);
 int bq25703a_otg_function_init(int voltage, int current_mA);
 int set_otg_vol_current(int voltage, int current_mA);
-int bq25703a_battery_system_vol_read( int bs_vol[] );
+int bq25703a_battery_system_vol_read( int *bs_vol );
 //int set_gpiox(int pin_number, char *direction, int value);
 
-#endif 
+#endif
 

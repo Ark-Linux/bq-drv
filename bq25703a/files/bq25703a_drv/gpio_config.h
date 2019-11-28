@@ -1,6 +1,6 @@
 /**
 *  @file      gpio_config.h
-*  @brief     gpio_config 
+*  @brief     gpio_config
 *  @author    Zack Li
 *  @date      11 -2019
 *  @copyright
