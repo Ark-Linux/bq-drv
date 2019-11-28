@@ -19,7 +19,7 @@
 #include <poll.h>
 #include "bq25703a_drv.h"
 
-int get_irq_gpiox(int pin_number);
+int get_irq_gpiox(int pin_number, int do_what, int voltage, int current_mA);
 
 int set_gpiox_high(int pin_number);
 int set_gpiox_low(int pin_number);

@@ -133,15 +133,15 @@ int bq25703a_i2c_read(unsigned char addr, unsigned char reg, unsigned char *val,
     return i2c_read(addr, reg, val, len);
 }
 
-int bq25703a_charge_function_init(int voltage, int current_mA)
+int bq25703a_charge_function_init()
 {
     unsigned char val[2]= {0};
-	
+
     //charge option 0
     little_to_big(0x020E, val);
     bq25703a_i2c_write(BQ_I2C_ADDR, 0x00, val, sizeof(val));
 
-    set_charge_voltage_current(voltage, current_mA);
+    set_charge_voltage_current();
 
     little_to_big(0x0210, val);
     bq25703a_i2c_write(BQ_I2C_ADDR, 0x30, val, sizeof(val));
@@ -152,23 +152,25 @@ int bq25703a_charge_function_init(int voltage, int current_mA)
 
     return 0;
 }
-int set_charge_voltage_current(int voltage, int current_mA)
+int set_charge_voltage_current()
 {
     unsigned char val[2]= {0};
-	//printf("-----%x-----%x-----\n\n",voltage, current_mA);
-	
-    little_to_big(0X04D0, val);
+ 
+    little_to_big(0X3070, val);// voltage
+ 
     if(1 == bq25703a_i2c_write(BQ_I2C_ADDR, 0x04, val, sizeof(val)))
     {
         return 1;
     }
 
-    little_to_big(0X0800, val);
-
+    
+            little_to_big(0X0B80, val);// 2944 mA
+ 
     if(1 == bq25703a_i2c_write(BQ_I2C_ADDR, 0x02, val, sizeof(val)))
     {
         return 1;
     }
+	
     return 0;
 }
 
@@ -266,7 +268,8 @@ int set_otg_vol_current(int voltage, int current_mA)
     return 0;
 }
 
-/*tery and system voltage
+/*
+*   read battery and system voltage
 */
 int bq25703a_battery_system_vol_read( int bs_vol[] )
 {
@@ -289,23 +292,6 @@ int bq25703a_battery_system_vol_read( int bs_vol[] )
 
     return 0;
 }
-int bq25703a_input_current_read( int *bs_vol )
-{
-    unsigned char current = 0;
-
-    //buf[1] is 8-15 bit SYSTEM_VOL
-    //buf[0] is 0-7 bit  Voltage_SYSTEM
-    if(1 == bq25703a_i2c_read(BQ_I2C_ADDR, 0x2B, &current, sizeof(current)))
-    {
-        return 1;
-    }
-    else
-    {
-        *bs_vol = (int)current * 50;
-    }
-
-    return 0;
-}
 
 void little_to_big(short int val, unsigned char *res_val)
 {
@@ -318,34 +304,36 @@ void *gpiox_irq_thread_function(void *arg)
     struct thread_argument *arg_thread;
     arg_thread = ( struct thread_argument * )arg;
 
-    get_irq_gpiox(arg_thread->pin_number, arg_thread->do_what, arg_thread->voltage, arg_thread->current_mA);
-    pthread_exit("gpiox_irq_thread_function exit");
+    get_irq_gpiox(arg_thread->pin_number);
+    pthread_exit("Thank you for the CPU time");
 }
 
 int main(void)
 {
+    int voltage=13;
+    int current_mA=2;
+    int bs_buf[2]= {0};
     pthread_t thread1;
-    int input_current = 0;
+
     i2c_open();
 
-    bq25703a_charge_function_init(VOLTAGE, CURRENT_MA);
+
+
+    bq25703a_charge_function_init();
 
     //start irq thread
     struct thread_argument arg1;
-    arg1.pin_number = CHG_OK_PIN;
-    arg1.do_what = CHARGE_FUNCTION;
-    arg1.voltage = VOLTAGE;
-    arg1.current_mA = CURRENT_MA;
+    arg1.pin_number = 36;
+
 
     pthread_create( &thread1, NULL, gpiox_irq_thread_function, (void*)&arg1 );
 
     while(1)
     {
-        bq25703a_input_current_read(&input_current);
-        printf("read input current: %d\n\n", input_current);
-        sleep(2);
+        //sleep(2);
+        //bq25703a_battery_system_vol_read( bs_buf );
+        //printf("battert voltage = %d\nsystem voltage = %d\n",bs_buf[0], bs_buf[1]);
     }
-
     return 0;
 }
 
