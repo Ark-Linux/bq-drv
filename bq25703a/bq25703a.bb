@@ -7,7 +7,7 @@ SRC_URI  = "file://bq25703a_drv/"
 
 S = "${WORKDIR}/bq25703a_drv"
 do_compile () {
-  ${CC} gpio_config.c bq25703a_drv.c -o bq25703a_drv
+  ${CC} gpio_config.c bq25703a_drv.c -o bq25703a_drv -lpthread
 }
 
 do_configure () {

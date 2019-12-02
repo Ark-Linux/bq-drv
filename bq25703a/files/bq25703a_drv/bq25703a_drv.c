@@ -9,10 +9,48 @@
 #include "bq25703a_drv.h"
 #include "gpio_config.h"
 
+
+	
 #define I2C_FILE_NAME   "/dev/i2c-2"
 #define BQ_I2C_ADDR        0x6B
+
 int fd;
 
+uint16_t CHARGE_REGISTER_DDR_VALUE_BUF[]=
+{
+    /*0*/   	CHARGE_OPTION_0_WR,         0x020E,
+    /*2*/   	CHARGE_CURRENT_REGISTER_WR, 0x0800,
+    /*4*/   	CHARGE_VOLTAGE_REGISTER_WR, 0x3070,
+    /*6*/       OTG_VOLTAGE_REGISTER_WR,    0x0000,
+    /*8*/       OTG_CURRENT_REGISTER_WR,    0x0000,
+    /*10*/      INPUT_VOLTAGE_REGISTER_WR,  0x0000,
+    /*12*/      MINIMUM_SYSTEM_VOLTAGE_WR,  0x1800,
+    /*14*/      INPUT_CURRENT_REGISTER_WR,  0x4100,
+    /*16*/      CHARGE_OPTION_1_WR,         0x0210,
+    /*18*/      CHARGE_OPTION_2_WR,         0x02B7,
+    /*20*/      CHARGE_OPTION_3_WR,         0x0000,
+    /*22*/      PROCHOT_OPTION_0_WR,        0x4A54,
+    /*24*/      PROCHOT_OPTION_1_WR,        0x8120,
+    /*26*/      ADC_OPTION_WR,              0xE0FF
+};
+
+uint16_t OTG_REGISTER_DDR_VALUE_BUF[]=
+{
+    /*0*/       CHARGE_OPTION_0_WR,         0xE20E,
+    /*2*/       CHARGE_CURRENT_REGISTER_WR, 0x0000,
+    /*4*/       CHARGE_VOLTAGE_REGISTER_WR, 0x0000,
+    /*6*/       OTG_VOLTAGE_REGISTER_WR,    0x0200,
+    /*8*/       OTG_CURRENT_REGISTER_WR,    0x0A00,
+    /*10*/      INPUT_VOLTAGE_REGISTER_WR,  0x0000,
+    /*12*/      MINIMUM_SYSTEM_VOLTAGE_WR,  0x0000,
+    /*14*/      INPUT_CURRENT_REGISTER_WR,  0x4100,
+    /*16*/      CHARGE_OPTION_1_WR,         0x0211,
+    /*18*/      CHARGE_OPTION_2_WR,         0x02B7,
+    /*20*/      CHARGE_OPTION_3_WR,         0x1000,
+    /*22*/      PROCHOT_OPTION_0_WR,        0x4A54,
+    /*24*/      PROCHOT_OPTION_1_WR,        0x8120,
+    /*26*/      ADC_OPTION_WR,              0xE0FF
+};
 
 
 int i2c_open()
@@ -38,7 +76,7 @@ int i2c_open()
         return 1;
     }
 
-    printf("i2c: set i2c device address success%d\n");
+    printf("i2c: set i2c device address success\n");
 
     val = 3;
     ret = ioctl(fd, I2C_RETRIES, val);
@@ -137,70 +175,129 @@ int bq25703a_i2c_read(unsigned char addr, unsigned char reg, unsigned char *val,
 
 int bq25703a_charge_function_init()
 {
-    unsigned char val[2]= {0};
+    /*
+        unsigned char val[2]= {0};
 
-    //charge option 0
-    little_to_big(0x020E, val);
-    bq25703a_i2c_write(BQ_I2C_ADDR, 0x00, val, sizeof(val));
+        //charge option 0
+        little_to_big(0x020E, val);
+        bq25703a_i2c_write(BQ_I2C_ADDR, 0x00, val, sizeof(val));
 
-    set_charge_voltage_current();
+        set_charge_voltage_current();
 
-    little_to_big(0x0210, val);
-    bq25703a_i2c_write(BQ_I2C_ADDR, 0x30, val, sizeof(val));
+        little_to_big(0x0210, val);
+        bq25703a_i2c_write(BQ_I2C_ADDR, 0x30, val, sizeof(val));
 
-    //ADC
-    little_to_big(0xE0FF, val);
-    bq25703a_i2c_write(BQ_I2C_ADDR, 0x3A, val, sizeof(val));
 
+        //ADC
+        little_to_big(0xE0FF, val);
+        bq25703a_i2c_write(BQ_I2C_ADDR, 0x3A, val, sizeof(val));
+    */
+    for (int i = 0; i < sizeof(CHARGE_REGISTER_DDR_VALUE_BUF) - 1; i ++)
+    {
+        if (i%2 == 0)
+        {
+            if(0 != bq25703a_i2c_write(
+                   BQ_I2C_ADDR,
+                   CHARGE_REGISTER_DDR_VALUE_BUF[i],
+                   ((unsigned char*)(&CHARGE_REGISTER_DDR_VALUE_BUF[i+1])),
+                   2)
+              )
+            {
+                printf("write %d eer\n",CHARGE_REGISTER_DDR_VALUE_BUF[i]);
+                return 1;
+            }
+        }
+    }
     return 0;
 }
 int set_charge_voltage_current()
 {
-    unsigned char val[2]= {0};
+    /*
+        unsigned char val[2]= {0};
 
-    little_to_big(0X3070, val);// voltage 12400 mV
+        little_to_big(0X3070, val);// voltage 12400 mV
 
-    if(1 == bq25703a_i2c_write(BQ_I2C_ADDR, 0x04, val, sizeof(val)))
+        if(0 != bq25703a_i2c_write(BQ_I2C_ADDR, 0x04, val, sizeof(val)))
+        {
+            return 1;
+        }
+
+
+        little_to_big(0X0B80, val);// current 2944 mA
+
+        if(0 != bq25703a_i2c_write(BQ_I2C_ADDR, 0x02, val, sizeof(val)))
+        {
+            return 1;
+        }
+    */
+    if(0 != bq25703a_i2c_write(
+           BQ_I2C_ADDR,
+           CHARGE_REGISTER_DDR_VALUE_BUF[2],
+           ((unsigned char*)(&CHARGE_REGISTER_DDR_VALUE_BUF[3])),
+           2)
+      )
     {
+        printf("write %d eer\n",CHARGE_REGISTER_DDR_VALUE_BUF[2]);
         return 1;
     }
-
-
-    little_to_big(0X0B80, val);// current 2944 mA
-
-    if(1 == bq25703a_i2c_write(BQ_I2C_ADDR, 0x02, val, sizeof(val)))
+    if(0 != bq25703a_i2c_write(
+           BQ_I2C_ADDR,
+           CHARGE_REGISTER_DDR_VALUE_BUF[4],
+           ((unsigned char*)(&CHARGE_REGISTER_DDR_VALUE_BUF[5])),
+           2)
+      )
     {
+        printf("write register addr %d eer\n",CHARGE_REGISTER_DDR_VALUE_BUF[4]);
         return 1;
     }
 
     return 0;
 }
 
-int bq25703a_otg_function_init(int voltage, int current_mA)
+int bq25703a_otg_function_init()
 {
+    /*
+        unsigned char val[2]= {0};
+        //Set EN_OTG high -> GPIO set high
+        //set_gpiox(36, "out", 1);
+        set_gpiox_high(36);
 
-    unsigned char val[2]= {0};
-    //Set EN_OTG high -> GPIO set high
-    //set_gpiox(36, "out", 1);
-    set_gpiox_high(36);
+        //charge option0 0x00->E20E
+        little_to_big(0xE20E, val);
+        bq25703a_i2c_write(BQ_I2C_ADDR, 0x00, val, sizeof(val));
 
-    //charge option0 0x00->E20E
-    little_to_big(0xE20E, val);
-    bq25703a_i2c_write(BQ_I2C_ADDR, 0x00, val, sizeof(val));
+        //Write the Charge Voltage Register to 0x20D0
+        little_to_big(0x20D0, val);
+        bq25703a_i2c_write(BQ_I2C_ADDR, 0x04, val, sizeof(val));
 
-    //Write the Charge Voltage Register to 0x20D0
-    little_to_big(0x20D0, val);
-    bq25703a_i2c_write(BQ_I2C_ADDR, 0x04, val, sizeof(val));
+        set_otg_vol_current(voltage, current_mA);
 
-    set_otg_vol_current(voltage, current_mA);
+        //EN_OTG in Charge Option 3
+        little_to_big(0x1000, val);
+        bq25703a_i2c_write(BQ_I2C_ADDR, 0x34, val, sizeof(val));
 
-    //EN_OTG in Charge Option 3
-    little_to_big(0x1000, val);
-    bq25703a_i2c_write(BQ_I2C_ADDR, 0x34, val, sizeof(val));
+        //ADC
+        little_to_big(0xE0FF, val);
+        bq25703a_i2c_write(BQ_I2C_ADDR, 0x3A, val, sizeof(val));
+    */
 
-    //ADC
-    little_to_big(0xE0FF, val);
-    bq25703a_i2c_write(BQ_I2C_ADDR, 0x3A, val, sizeof(val));
+    for (int i = 0; i < sizeof(OTG_REGISTER_DDR_VALUE_BUF) - 1; i ++)
+    {
+        if (i%2 == 0)
+        {
+            if(0 != bq25703a_i2c_write(
+                   BQ_I2C_ADDR,
+                   OTG_REGISTER_DDR_VALUE_BUF[i],
+                   ((unsigned char*)(&OTG_REGISTER_DDR_VALUE_BUF[i+1])),
+                   2)
+              )
+            {
+                printf("write register addr %d eer\n", OTG_REGISTER_DDR_VALUE_BUF[i]);
+                return 0;
+            }
+        }
+    }
+
 
     return 0;
 }
@@ -210,8 +307,9 @@ int bq25703a_otg_function_init(int voltage, int current_mA)
 *   voltage：
 *   current_mA :
 */
-int set_otg_vol_current(int voltage, int current_mA)
+int set_otg_vol_current()
 {
+/*
     unsigned char val[2]= {0};
     little_to_big(0x1000, val);
     if(1 == bq25703a_i2c_write(BQ_I2C_ADDR, 0x34, val, sizeof(val)))
@@ -266,7 +364,29 @@ int set_otg_vol_current(int voltage, int current_mA)
     {
         return 1;
     }
+*/
 
+	
+    if(0 != bq25703a_i2c_write(
+           BQ_I2C_ADDR,
+           OTG_REGISTER_DDR_VALUE_BUF[2],
+           ((unsigned char*)(&OTG_REGISTER_DDR_VALUE_BUF[3])),
+           2)
+      )
+    {
+        printf("write %d eer\n",OTG_REGISTER_DDR_VALUE_BUF[2]);
+        return 1;
+    }
+    if(0 != bq25703a_i2c_write(
+           BQ_I2C_ADDR,
+           OTG_REGISTER_DDR_VALUE_BUF[4],
+           ((unsigned char*)(&OTG_REGISTER_DDR_VALUE_BUF[5])),
+           2)
+      )
+    {
+        printf("write register addr %d eer\n",OTG_REGISTER_DDR_VALUE_BUF[4]);
+        return 1;
+    }
     return 0;
 }
 
@@ -310,7 +430,7 @@ void *bq25703a_chgok_irq_thread(void *arg)
     int pin_number = arg_thread->pin_number;
     register_gpiox(pin_number);
     set_direction(pin_number, "in");
-    set_edge(pin_number, "both");
+    set_edge(pin_number, "rising");
 
     sprintf(file_path, "/sys/class/gpio/gpio%d/value", pin_number);
     int fd = open(file_path, O_RDONLY);
@@ -371,11 +491,7 @@ int main(void)
     arg1.pin_number = CHG_OK_PIN;
     pthread_create( &thread1, NULL, bq25703a_chgok_irq_thread, (void*)&arg1 );
 
-    while(1)
-    {
-        //sleep(2);
-        //printf("running\n");
-    }
+    while(1);
 
     return 0;
 }

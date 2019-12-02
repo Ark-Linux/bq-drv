@@ -20,6 +20,7 @@
 #include <linux/i2c-dev.h>
 #include <pthread.h>
 #include <poll.h>
+#include <stdint.h>
 
 
 
@@ -44,6 +45,36 @@
 
 #define CHG_OK_PIN      36
 
+//REGISTER_DDR
+#define CHARGE_OPTION_0_WR                              0x00
+#define CHARGE_CURRENT_REGISTER_WR                      0x02
+#define CHARGE_VOLTAGE_REGISTER_WR                      0x04
+#define OTG_VOLTAGE_REGISTER_WR                         0x06
+#define OTG_CURRENT_REGISTER_WR                         0x08
+#define INPUT_VOLTAGE_REGISTER_WR                       0x0A
+#define MINIMUM_SYSTEM_VOLTAGE_WR                       0x0C
+#define INPUT_CURRENT_REGISTER_WR                       0x0E
+#define CHARGE_STATUS_REGISTER_R                        0x20
+#define PROCHOT_STATUS_REGISTER_R                       0x22
+#define INPUT_CURRENT_LIMIT_IN_USE_R                    0x24
+#define VBUS_AND_PSYS_VOLTAGE_READ_BACK_R               0x26
+#define CHARGE_AND_DISCHARGE_CURRENT_READ_BACK_R        0x28
+#define INPUT_CURRENT_AND_CMPIN_VOLTAGE_READ_BACK_R     0x2A
+#define SYSTEM_AND_BATTERY_VOLTAGE_READ_BACK_R          0x2C
+#define MANUFACTURE_ID_AND_DEVICE_ID_READ_BACK_R        0x2E
+#define DEVICE_ID_READ_BACK_R                           0x2F
+#define CHARGE_OPTION_1_WR                              0x30
+#define CHARGE_OPTION_2_WR                              0x32
+#define CHARGE_OPTION_3_WR                              0x34
+#define PROCHOT_OPTION_0_WR                             0x36
+#define PROCHOT_OPTION_1_WR                             0x38
+#define ADC_OPTION_WR                                   0x3A
+
+
+
+
+
+
 // 参数结构体
 struct thread_argument
 {
@@ -53,6 +84,8 @@ struct thread_argument
     //int current_mA;
     //char string[30];
 };
+
+
 
 
 #endif
