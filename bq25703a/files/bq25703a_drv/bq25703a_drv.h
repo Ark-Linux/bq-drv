@@ -43,7 +43,7 @@
 #define CHARGE_FUNCTION 0
 #define OTG_FUNCTION    1
 
-#define CHG_OK_PIN      36
+#define CHG_OK_PIN      26
 
 //REGISTER_DDR
 #define CHARGE_OPTION_0_WR                              0x00
@@ -69,21 +69,6 @@
 #define PROCHOT_OPTION_0_WR                             0x36
 #define PROCHOT_OPTION_1_WR                             0x38
 #define ADC_OPTION_WR                                   0x3A
-
-
-
-
-
-
-// 参数结构体
-struct thread_argument
-{
-    int pin_number;
-    //int do_what;
-    //int voltage;
-    //int current_mA;
-    //char string[30];
-};
 
 
 

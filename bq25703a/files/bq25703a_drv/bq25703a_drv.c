@@ -10,17 +10,17 @@
 #include "gpio_config.h"
 
 
-	
+
 #define I2C_FILE_NAME   "/dev/i2c-2"
 #define BQ_I2C_ADDR        0x6B
 
-int fd;
+static int fd;
 
 uint16_t CHARGE_REGISTER_DDR_VALUE_BUF[]=
 {
-    /*0*/   	CHARGE_OPTION_0_WR,         0x020E,
-    /*2*/   	CHARGE_CURRENT_REGISTER_WR, 0x0800,
-    /*4*/   	CHARGE_VOLTAGE_REGISTER_WR, 0x3070,
+    /*0*/       CHARGE_OPTION_0_WR,         0x020E,
+    /*2*/       CHARGE_CURRENT_REGISTER_WR, 0x0800,
+    /*4*/       CHARGE_VOLTAGE_REGISTER_WR, 0x3070,
     /*6*/       OTG_VOLTAGE_REGISTER_WR,    0x0000,
     /*8*/       OTG_CURRENT_REGISTER_WR,    0x0000,
     /*10*/      INPUT_VOLTAGE_REGISTER_WR,  0x0000,
@@ -53,7 +53,7 @@ uint16_t OTG_REGISTER_DDR_VALUE_BUF[]=
 };
 
 
-int i2c_open()
+static int i2c_open()
 {
     int ret;
     int val;
@@ -89,7 +89,9 @@ int i2c_open()
 
     return 0;
 }
-int i2c_write(unsigned char dev_addr, unsigned char *val, unsigned char len)
+
+
+static int i2c_write(unsigned char dev_addr, unsigned char *val, unsigned char len)
 {
     int ret;
 
@@ -108,17 +110,15 @@ int i2c_write(unsigned char dev_addr, unsigned char *val, unsigned char len)
 
     if(ioctl(fd, I2C_RDWR, &data) < 0)
     {
-        perror("---");
         printf("write ioctl err %d\n",fd);
-
         return 1;
     }
 
-    usleep(1000);
-
     return 0;
 }
-int i2c_read(unsigned char addr, unsigned char reg, unsigned char *val, unsigned char len)
+
+
+static int i2c_read(unsigned char addr, unsigned char reg, unsigned char *val, unsigned char len)
 {
     int ret;
 
@@ -148,6 +148,8 @@ int i2c_read(unsigned char addr, unsigned char reg, unsigned char *val, unsigned
 
     return 0;
 }
+
+
 int bq25703a_i2c_write(unsigned char dev_addr, unsigned char reg, unsigned char *val, unsigned char data_len)
 {
     unsigned char buf[80] = {0};
@@ -168,10 +170,13 @@ int bq25703a_i2c_write(unsigned char dev_addr, unsigned char reg, unsigned char 
 
     return i2c_write(dev_addr, buf, data_len+1);
 }
+
+
 int bq25703a_i2c_read(unsigned char addr, unsigned char reg, unsigned char *val, unsigned char len)
 {
     return i2c_read(addr, reg, val, len);
 }
+
 
 int bq25703a_charge_function_init()
 {
@@ -210,6 +215,8 @@ int bq25703a_charge_function_init()
     }
     return 0;
 }
+
+
 int set_charge_voltage_current()
 {
     /*
@@ -230,29 +237,33 @@ int set_charge_voltage_current()
             return 1;
         }
     */
+
+    printf("set_charge_voltage and current\n");
+
     if(0 != bq25703a_i2c_write(
            BQ_I2C_ADDR,
-           CHARGE_REGISTER_DDR_VALUE_BUF[2],
+           CHARGE_CURRENT_REGISTER_WR,
            ((unsigned char*)(&CHARGE_REGISTER_DDR_VALUE_BUF[3])),
            2)
       )
     {
-        printf("write %d eer\n",CHARGE_REGISTER_DDR_VALUE_BUF[2]);
+        printf("write Current eer\n");
         return 1;
     }
     if(0 != bq25703a_i2c_write(
            BQ_I2C_ADDR,
-           CHARGE_REGISTER_DDR_VALUE_BUF[4],
+           CHARGE_VOLTAGE_REGISTER_WR,
            ((unsigned char*)(&CHARGE_REGISTER_DDR_VALUE_BUF[5])),
            2)
       )
     {
-        printf("write register addr %d eer\n",CHARGE_REGISTER_DDR_VALUE_BUF[4]);
+        printf("write VOLTAGE eer\n");
         return 1;
     }
 
     return 0;
 }
+
 
 int bq25703a_otg_function_init()
 {
@@ -302,6 +313,7 @@ int bq25703a_otg_function_init()
     return 0;
 }
 
+
 /*
 *   set otg voltage and current
 *   voltage：
@@ -309,64 +321,64 @@ int bq25703a_otg_function_init()
 */
 int set_otg_vol_current()
 {
-/*
-    unsigned char val[2]= {0};
-    little_to_big(0x1000, val);
-    if(1 == bq25703a_i2c_write(BQ_I2C_ADDR, 0x34, val, sizeof(val)))
-    {
-        return 1;
-    }
+    /*
+        unsigned char val[2]= {0};
+        little_to_big(0x1000, val);
+        if(1 == bq25703a_i2c_write(BQ_I2C_ADDR, 0x34, val, sizeof(val)))
+        {
+            return 1;
+        }
 
-    switch (voltage)
-    {
-        case OTG_VOL_1:
-            little_to_big(0x0200, val);// 4992 mv
-            break;
+        switch (voltage)
+        {
+            case OTG_VOL_1:
+                little_to_big(0x0200, val);// 4992 mv
+                break;
 
-        case OTG_VOL_2:
-            little_to_big(0x11C0, val);// 9024 mv
-            break;
+            case OTG_VOL_2:
+                little_to_big(0x11C0, val);// 9024 mv
+                break;
 
-        case OTG_VOL_3:
-            little_to_big(0x2940, val);// 15040 mv
-            break;
+            case OTG_VOL_3:
+                little_to_big(0x2940, val);// 15040 mv
+                break;
 
-        default:
-            little_to_big(0x0200, val);// 5008 mv
-            break;
-    }
+            default:
+                little_to_big(0x0200, val);// 5008 mv
+                break;
+        }
 
-    if(1 == bq25703a_i2c_write(BQ_I2C_ADDR, 0x06, val, sizeof(val)))
-    {
-        return 1;
-    }
+        if(1 == bq25703a_i2c_write(BQ_I2C_ADDR, 0x06, val, sizeof(val)))
+        {
+            return 1;
+        }
 
-    switch (current_mA)
-    {
-        case OTG_CUR_1:
-            little_to_big(0x0400, val);// 1024 mA
-            break;
+        switch (current_mA)
+        {
+            case OTG_CUR_1:
+                little_to_big(0x0400, val);// 1024 mA
+                break;
 
-        case OTG_CUR_2:
-            little_to_big(0x0800, val);//  2048 mA
-            break;
+            case OTG_CUR_2:
+                little_to_big(0x0800, val);//  2048 mA
+                break;
 
-        case OTG_CUR_3:
-            little_to_big(0x0BC0, val);// 3008 mA
-            break;
+            case OTG_CUR_3:
+                little_to_big(0x0BC0, val);// 3008 mA
+                break;
 
-        default:
-            little_to_big(0x0400, val);// 1024 mA
-            break;
-    }
+            default:
+                little_to_big(0x0400, val);// 1024 mA
+                break;
+        }
 
-    if(1 == bq25703a_i2c_write(BQ_I2C_ADDR, 0x08, val, sizeof(val)))
-    {
-        return 1;
-    }
-*/
+        if(1 == bq25703a_i2c_write(BQ_I2C_ADDR, 0x08, val, sizeof(val)))
+        {
+            return 1;
+        }
+    */
 
-	
+
     if(0 != bq25703a_i2c_write(
            BQ_I2C_ADDR,
            OTG_REGISTER_DDR_VALUE_BUF[2],
@@ -389,6 +401,7 @@ int set_otg_vol_current()
     }
     return 0;
 }
+
 
 /*
 *   read battery and system voltage
@@ -415,19 +428,26 @@ int bq25703a_battery_system_vol_read( int bs_vol[] )
     return 0;
 }
 
+
 void little_to_big(short int val, unsigned char *res_val)
 {
     res_val[0] = val & 0x00ff; //low 8-bit
     res_val[1] = val >> 8; //high 8-bit
 }
 
+
 void *bq25703a_chgok_irq_thread(void *arg)
 {
-    struct thread_argument *arg_thread;
-    arg_thread = ( struct thread_argument * )arg;
+    int ret;
+    int n;
+
+    unsigned char value[4];
+    unsigned char j = 0;
+
     char file_path[64]= {0};
 
-    int pin_number = arg_thread->pin_number;
+    int pin_number = CHG_OK_PIN;
+
     register_gpiox(pin_number);
     set_direction(pin_number, "in");
     set_edge(pin_number, "rising");
@@ -436,62 +456,60 @@ void *bq25703a_chgok_irq_thread(void *arg)
     int fd = open(file_path, O_RDONLY);
     if(fd < 0)
     {
-        printf("open %s failed!\n", file_path);
+        printf("can't open %s!\n", file_path);
         return -1;
     }
 
     struct pollfd fds[1];
-    fds[0].fd=fd;
-    fds[0].events=POLLPRI;
+    fds[0].fd = fd;
+    fds[0].events = POLLPRI;
 
     while(1)
     {
-        if(poll(fds, 1, 0) == -1) //the last argumenxt is timeout , 0->不阻塞, x->x毫秒
-        {
-            perror("poll failed!\n");
-            return -1;
-        }
-        if(fds[0].revents&POLLPRI)
-        {
-            /*
-            if(lseek(fd, 0, SEEK_SET) == -1)
-            {
-                perror("lseek failed!\n");
-                return -1;
-            }
-            char buffer[2];
-            int len;
-            if((len=read(fd, buffer, sizeof(buffer))) == -1)
-            {
-                perror("read failed!\n");
-                return -1;
-            }
-            buffer[len]=0;
-            printf("\n\n\n %d thread irq read: %s\n\n\n", pin_number, buffer);
-            //do something
-            */
-            set_charge_voltage_current();
-            //printf("\n\n\n CHARGE_FUNCTION \n\n\n");
+        ret = poll(fds, 1, -1);
+        printf("poll return = %d\n",ret);
 
-        }
+        if(ret > 0)
+        {
+            if(fds[0].revents & POLLPRI)
+            {
+                if(lseek(fd, 0, SEEK_SET) == -1)
+                {
+                    printf("lseek failed!\n");
+                    break;
+                }
 
+                n = read(fd, value, sizeof(value));
+                printf("read %d bytes %c %c, count = %d\n", n, value[0],value[1],j++);
+
+                if(value[0] == '1')
+                {
+                    set_charge_voltage_current();
+                }
+            }
+        }
     }
+
     unregister_gpiox(pin_number);
     pthread_exit("bq25703a_chgok_irq_thread exit");
 }
 
+
 int main(void)
 {
-    pthread_t thread1;
+    pthread_t thread_check_chgok_ntid;
 
     i2c_open();
-    bq25703a_charge_function_init();
-    //start irq thread
-    struct thread_argument arg1;
-    arg1.pin_number = CHG_OK_PIN;
-    pthread_create( &thread1, NULL, bq25703a_chgok_irq_thread, (void*)&arg1 );
 
-    while(1);
+    bq25703a_charge_function_init();
+
+    //start irq thread
+    pthread_create(&thread_check_chgok_ntid, NULL, bq25703a_chgok_irq_thread, NULL);
+
+    while(1)
+    {
+        sleep(1);
+    }
 
     return 0;
 }

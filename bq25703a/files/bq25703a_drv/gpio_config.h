@@ -1,6 +1,6 @@
 /**
 *  @file      gpio_config.h
-*  @brief     gpio_config 
+*  @brief     gpio_config
 *  @author    Zack Li
 *  @date      11 -2019
 *  @copyright
@@ -19,7 +19,6 @@
 #include <poll.h>
 #include "bq25703a_drv.h"
 
-int get_irq_gpiox(int pin_number);
 
 int set_gpiox_high(int pin_number);
 int set_gpiox_low(int pin_number);
