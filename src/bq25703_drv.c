@@ -6,7 +6,7 @@
 *  @copyright
 */
 
-#include "bq25703a_drv.h"
+#include "bq25703_drv.h"
 #include "gpio_config.h"
 
 

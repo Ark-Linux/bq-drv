@@ -17,7 +17,6 @@
 #include<string.h>
 #include<stdlib.h>
 #include <poll.h>
-#include "bq25703a_drv.h"
 
 
 int set_gpiox_high(int pin_number);
