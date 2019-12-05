@@ -19,8 +19,8 @@ static int fd;
 uint16_t CHARGE_REGISTER_DDR_VALUE_BUF[]=
 {
     /*0*/       CHARGE_OPTION_0_WR,         0x020E,
-    /*2*/       CHARGE_CURRENT_REGISTER_WR, 0x0800,
-    /*4*/       CHARGE_VOLTAGE_REGISTER_WR, 0x3070,
+    /*2*/       CHARGE_CURRENT_REGISTER_WR, CHARGE_CURRENT,
+    /*4*/       CHARGE_VOLTAGE_REGISTER_WR, CHARGE_VOLTAGE,
     /*6*/       OTG_VOLTAGE_REGISTER_WR,    0x0000,
     /*8*/       OTG_CURRENT_REGISTER_WR,    0x0000,
     /*10*/      INPUT_VOLTAGE_REGISTER_WR,  0x0000,
@@ -194,124 +194,6 @@ int bq25703a_i2c_read(unsigned char addr, unsigned char reg, unsigned char *val,
 }
 
 
-int bq25703a_charge_function_init()
-{
-
-    for (int i = 0; i < sizeof(CHARGE_REGISTER_DDR_VALUE_BUF) - 1; i ++)
-    {
-        if (i%2 == 0)
-        {
-            if(0 != bq25703a_i2c_write(
-                   BQ_I2C_ADDR,
-                   CHARGE_REGISTER_DDR_VALUE_BUF[i],
-                   ((unsigned char*)(&CHARGE_REGISTER_DDR_VALUE_BUF[i+1])),
-                   2)
-              )
-            {
-                printf("write %d eer\n",CHARGE_REGISTER_DDR_VALUE_BUF[i]);
-                return -1;
-            }
-        }
-    }
-
-    printf("bq25703a charge_function init success\n");
-
-    return 0;
-}
-
-
-int set_charge_voltage_current()
-{
-    int charge_current = 0x0B80; //2944mA
-    int charge_vol = 0x3070; // 12400mV
-
-    printf("set charge current: %d\n",charge_current);
-
-    if(0 != bq25703a_i2c_write(
-           BQ_I2C_ADDR,
-           CHARGE_CURRENT_REGISTER_WR,
-           ((unsigned char*)(&charge_current)),
-           2)
-      )
-    {
-        printf("write Current eer\n");
-        return -1;
-    }
-
-
-    printf("set charge voltage: %d\n",charge_vol);
-
-    if(0 != bq25703a_i2c_write(
-           BQ_I2C_ADDR,
-           CHARGE_VOLTAGE_REGISTER_WR,
-           ((unsigned char*)(&charge_vol)),
-           2)
-      )
-    {
-        printf("write VOLTAGE eer\n");
-        return -1;
-    }
-
-    return 0;
-}
-
-int bq25703a_get_ChargeCurrent(void)
-{
-    unsigned char buf[2] = {0};
-
-    int charge_current = 0;
-
-    if(bq25703a_i2c_read(BQ_I2C_ADDR, CHARGE_CURRENT_REGISTER_WR, buf, 2) != 0)
-    {
-        return -1;
-    }
-    else
-    {
-        printf("read charge_current_reg: %02x %02x\n\n",buf[0],buf[1]);
-
-        if(buf[0] & 0x40)
-        {
-            charge_current += 64;
-        }
-
-        if(buf[0] & 0x80)
-        {
-            charge_current += 128;
-        }
-
-        if(buf[1] & 0x01)
-        {
-            charge_current += 256;
-        }
-
-        if(buf[1] & 0x02)
-        {
-            charge_current += 512;
-        }
-
-        if(buf[1] & 0x04)
-        {
-            charge_current += 1024;
-        }
-
-        if(buf[1] & 0x08)
-        {
-            charge_current += 2048;
-        }
-
-        if(buf[1] & 0x10)
-        {
-            charge_current += 4096;
-        }
-
-        printf("Charge Current: %d\n",charge_current);
-
-        return charge_current;
-    }
-
-}
-
-
 int bq25703a_otg_function_init()
 {
     for (int i = 0; i < sizeof(OTG_REGISTER_DDR_VALUE_BUF) - 1; i ++)
@@ -369,6 +251,124 @@ int bq25703a_set_otg_vol_and_current()
 }
 
 
+int bq25703a_charge_function_init()
+{
+
+    for (int i = 0; i < sizeof(CHARGE_REGISTER_DDR_VALUE_BUF) - 1; i ++)
+    {
+        if (i%2 == 0)
+        {
+            if(0 != bq25703a_i2c_write(
+                   BQ_I2C_ADDR,
+                   CHARGE_REGISTER_DDR_VALUE_BUF[i],
+                   ((unsigned char*)(&CHARGE_REGISTER_DDR_VALUE_BUF[i+1])),
+                   2)
+              )
+            {
+                printf("write %d eer\n",CHARGE_REGISTER_DDR_VALUE_BUF[i]);
+                return -1;
+            }
+        }
+    }
+
+    printf("bq25703a charge_function init success\n");
+
+    return 0;
+}
+
+
+int bq25703_enable_charge_voltage_and_current()
+{
+    int charge_current = CHARGE_CURRENT;
+    int charge_vol = CHARGE_VOLTAGE;
+
+    printf("set charge current: %d\n",charge_current);
+
+    if(0 != bq25703a_i2c_write(
+           BQ_I2C_ADDR,
+           CHARGE_CURRENT_REGISTER_WR,
+           ((unsigned char*)(&charge_current)),
+           2)
+      )
+    {
+        printf("write Current eer\n");
+        return -1;
+    }
+
+
+    printf("set charge voltage: %d\n\n",charge_vol);
+
+    if(0 != bq25703a_i2c_write(
+           BQ_I2C_ADDR,
+           CHARGE_VOLTAGE_REGISTER_WR,
+           ((unsigned char*)(&charge_vol)),
+           2)
+      )
+    {
+        printf("write VOLTAGE eer\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+int bq25703a_get_ChargeCurrent(void)
+{
+    unsigned char buf[2] = {0};
+
+    int charge_current = 0;
+
+    if(bq25703a_i2c_read(BQ_I2C_ADDR, CHARGE_CURRENT_REGISTER_WR, buf, 2) != 0)
+    {
+        return -1;
+    }
+    else
+    {
+        printf("read charge_current_reg: 0x%02x 0x%02x\n",buf[0],buf[1]);
+
+        if(buf[0] & 0x40)
+        {
+            charge_current += 64;
+        }
+
+        if(buf[0] & 0x80)
+        {
+            charge_current += 128;
+        }
+
+        if(buf[1] & 0x01)
+        {
+            charge_current += 256;
+        }
+
+        if(buf[1] & 0x02)
+        {
+            charge_current += 512;
+        }
+
+        if(buf[1] & 0x04)
+        {
+            charge_current += 1024;
+        }
+
+        if(buf[1] & 0x08)
+        {
+            charge_current += 2048;
+        }
+
+        if(buf[1] & 0x10)
+        {
+            charge_current += 4096;
+        }
+
+        printf("Charge Current: %d\n\n",charge_current);
+
+        return charge_current;
+    }
+
+}
+
+
 int bq25703a_get_BatteryVol_and_SystemVol(unsigned int *p_BatteryVol, unsigned int *p_SystemVol)
 {
     unsigned char buf[2] = {0};
@@ -379,14 +379,14 @@ int bq25703a_get_BatteryVol_and_SystemVol(unsigned int *p_BatteryVol, unsigned i
     }
     else
     {
-        printf("read SYSTEM_AND_BATTERY_VOL reg: %02x %02x\n\n",buf[0],buf[1]);
+        printf("read SYSTEM_AND_BATTERY_VOL reg: 0x%02x 0x%02x\n",buf[0],buf[1]);
 
         //vol = 2880mv + buf[1]*64
         *p_BatteryVol = 2880 + buf[0] * 64;
         *p_SystemVol = 2880 + buf[1] * 64;
 
-        printf("Battery Voltage: %d\n",*p_BatteryVol);
-        printf("System Voltage: %d\n",*p_SystemVol);
+        printf("Battery Voltage: %dmV\n",*p_BatteryVol);
+        printf("System Voltage: %dmV\n\n",*p_SystemVol);
     }
 
     return 0;
@@ -402,7 +402,7 @@ int bq25703a_get_VBUS_and_PSYS(unsigned int *p_PSYS_vol, unsigned int *p_VBUS_vo
     }
     else
     {
-        printf("read VBUS_and_PSYS reg: %02x %02x\n\n",buf[0],buf[1]);
+        printf("read VBUS_and_PSYS reg: 0x%02x 0x%02x\n",buf[0],buf[1]);
 
         //psys = value*12
         *p_PSYS_vol = buf[0] * 12;
@@ -410,8 +410,8 @@ int bq25703a_get_VBUS_and_PSYS(unsigned int *p_PSYS_vol, unsigned int *p_VBUS_vo
         //vbus = 3200mv + value*64
         *p_VBUS_vol = 3200 + buf[1] * 64;
 
-        printf("VBUS: %d\n",*p_VBUS_vol);
-        printf("PSYS: %d\n",*p_PSYS_vol);
+        printf("VBUS: %dmV\n",*p_VBUS_vol);
+        printf("PSYS: %dmV\n\n",*p_PSYS_vol);
     }
 
     return 0;
@@ -427,16 +427,16 @@ int bq25703a_get_CMPINVol_and_InputCurrent(unsigned int *p_CMPIN_vol, unsigned i
     }
     else
     {
-        printf("read CMPINVol_and_InputCurrent reg: %02x %02x\n\n",buf[0],buf[1]);
+        printf("read CMPINVol_and_InputCurrent reg: 0x%02x 0x%02x\n",buf[0],buf[1]);
 
         //CMPIN: Full range: 3.06 V, LSB: 12 mV
-        *p_CMPIN_vol = buf[0] * 50;
+        *p_CMPIN_vol = buf[0] * 12;
 
-        //IIN: Full range: 12.75 A, LSB: 50 mA
-        *p_input_current = buf[1] * 12;
+        //Iuput Current: Full range: 12.75 A, LSB: 50 mA
+        *p_input_current = buf[1] * 50;
 
-        printf("CMPIN Voltage: %d\n",*p_CMPIN_vol);
-        printf("Input Current: %d\n",*p_input_current);
+        printf("CMPIN Voltage: %dmV\n",*p_CMPIN_vol);
+        printf("Input Current: %dmA\n\n",*p_input_current);
     }
 
     return 0;
@@ -491,7 +491,7 @@ void *bq25703a_chgok_irq_thread(void *arg)
 
                 if(value[0] == '1')
                 {
-                    set_charge_voltage_current();
+                    bq25703_enable_charge_voltage_and_current();
                 }
             }
         }

@@ -23,6 +23,10 @@
 #include <stdint.h>
 
 
+#define CHARGE_CURRENT  0x0B80 //2944mA
+#define CHARGE_VOLTAGE  0x30E0 //12512mV
+
+
 
 #define CHARGE_VOL_1    11  // 11008 mv
 #define CHARGE_VOL_2    12  // 12000 mv
