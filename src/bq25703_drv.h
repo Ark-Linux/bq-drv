@@ -47,7 +47,8 @@
 #define CHARGE_FUNCTION 0
 #define OTG_FUNCTION    1
 
-#define CHG_OK_PIN      26
+#define CHG_OK_PIN      106
+//#define CHG_OK_PIN      26 //for test on Zepplin board
 
 //REGISTER_DDR
 #define CHARGE_OPTION_0_WR                              0x00
