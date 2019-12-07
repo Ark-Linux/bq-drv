@@ -361,7 +361,7 @@ int bq25703a_get_ChargeCurrent(void)
             charge_current += 4096;
         }
 
-        printf("Charge Current: %d\n\n",charge_current);
+        printf("Charge Current: %dmA\n\n",charge_current);
 
         return charge_current;
     }
