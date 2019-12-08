@@ -53,7 +53,7 @@ uint16_t OTG_REGISTER_DDR_VALUE_BUF[]=
 };
 
 
-static int i2c_open()
+int i2c_open_bq25703(void)
 {
     int ret;
     int val;
@@ -64,7 +64,7 @@ static int i2c_open()
     {
         perror("Unable to open i2c control file");
 
-        return 1;
+        return -1;
     }
 
     printf("open i2c file success %d\n",fd);
@@ -73,7 +73,7 @@ static int i2c_open()
     if (ret < 0)
     {
         perror("i2c: Failed to set i2c device address\n");
-        return 1;
+        return -1;
     }
 
     printf("i2c: set i2c device address success\n");
@@ -527,7 +527,10 @@ int main(int argc, char* argv[])
         }
     }
 
-    i2c_open();
+    if(i2c_open_bq25703() != 0)
+    {
+        return -1;
+    }
 
     bq25703a_charge_function_init();
 
