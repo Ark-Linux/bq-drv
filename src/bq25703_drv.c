@@ -9,6 +9,7 @@
 #include "bq25703_drv.h"
 #include "gpio_config.h"
 
+#include "tps65987_interface.h"
 
 
 #define I2C_FILE_NAME   "/dev/i2c-2"
@@ -23,7 +24,7 @@ uint16_t CHARGE_REGISTER_DDR_VALUE_BUF[]=
     /*4*/       CHARGE_VOLTAGE_REGISTER_WR, CHARGE_VOLTAGE,
     /*6*/       OTG_VOLTAGE_REGISTER_WR,    0x0000,
     /*8*/       OTG_CURRENT_REGISTER_WR,    0x0000,
-    /*10*/      INPUT_VOLTAGE_REGISTER_WR,  0x0000,
+    /*10*/      INPUT_VOLTAGE_REGISTER_WR,  INPUT_VOLTAGE_LIMIT,
     /*12*/      MINIMUM_SYSTEM_VOLTAGE_WR,  0x1800,
     /*14*/      INPUT_CURRENT_REGISTER_WR,  0x4100,
     /*16*/      CHARGE_OPTION_1_WR,         0x0210,
@@ -277,12 +278,12 @@ int bq25703a_charge_function_init()
 }
 
 
-int bq25703_enable_charge_voltage_and_current()
+int bq25703_enable_charge_voltage_and_current(unsigned int charge_current_set)
 {
-    int charge_current = CHARGE_CURRENT;
+    int charge_current = charge_current_set;
     int charge_vol = CHARGE_VOLTAGE;
 
-    printf("set charge current: %d\n",charge_current);
+    printf("set charge current: %dmA\n",charge_current);
 
     if(0 != bq25703a_i2c_write(
            BQ_I2C_ADDR,
@@ -451,6 +452,9 @@ void *bq25703a_chgok_irq_thread(void *arg)
     unsigned char value[4];
     unsigned char j = 0;
 
+    unsigned int VBus_vol = 0;
+    unsigned int PSys_vol = 0;
+
     char file_path[64]= {0};
 
     int pin_number = CHG_OK_PIN;
@@ -491,7 +495,20 @@ void *bq25703a_chgok_irq_thread(void *arg)
 
                 if(value[0] == '1')
                 {
-                    bq25703_enable_charge_voltage_and_current();
+                    sleep(1); //wait for VBUS stable
+
+                    bq25703a_get_VBUS_and_PSYS(&PSys_vol, &VBus_vol);
+
+                    printf("get VBus_vol = %d\n",VBus_vol);
+
+                    if(VBus_vol < 5500)
+                    {
+                        bq25703_enable_charge_voltage_and_current(CHARGE_CURRENT_FOR_5V);
+                    }
+                    else
+                    {
+                        bq25703_enable_charge_voltage_and_current(CHARGE_CURRENT);
+                    }
                 }
             }
         }
@@ -517,6 +534,9 @@ int main(int argc, char* argv[])
 
     unsigned int charge_current;
 
+    //unsigned char tps65987_port_role;
+    //unsigned char tps65987_TypeC_current_type;
+
     pthread_t thread_check_chgok_ntid;
 
     if(argc > 1)
@@ -529,25 +549,23 @@ int main(int argc, char* argv[])
 
     if(i2c_open_bq25703() != 0)
     {
+        printf("i2c can't open bq25703!\n");
         return -1;
     }
 
     bq25703a_charge_function_init();
+
+    /*if(i2c_open_tps65987() != 0)
+    {
+        printf("i2c can't open tps65987!\n");
+        return -1;
+    }*/
 
     //start irq thread
     pthread_create(&thread_check_chgok_ntid, NULL, bq25703a_chgok_irq_thread, NULL);
 
     while(1)
     {
-        /*if((argc > 1) && (strcmp(argv[1],"Vol") == 0))
-        {
-            bq25703a_get_BatteryVol_and_SystemVol(&battery_vol,&system_vol);
-        }
-        else if((argc > 1) && (strcmp(argv[1],"Current") == 0))
-        {
-            bq25703a_get_CMPINVol_and_InputCurrent(&CMPIN_vol,&input_current);
-        }*/
-
         bq25703a_get_BatteryVol_and_SystemVol(&battery_vol, &system_vol);
 
         bq25703a_get_VBUS_and_PSYS(&PSYS_vol, &VBUS_vol);
@@ -555,6 +573,10 @@ int main(int argc, char* argv[])
         bq25703a_get_CMPINVol_and_InputCurrent(&CMPIN_vol, &input_current);
 
         charge_current = bq25703a_get_ChargeCurrent();
+
+        //tps65987_port_role = tps65987_get_PortRole();
+
+        //tps65987_TypeC_current_type = tps65987_get_TypeC_Current();
 
         printf("\n\n\n");
 

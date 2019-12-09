@@ -22,9 +22,12 @@
 #include <poll.h>
 #include <stdint.h>
 
-
 #define CHARGE_CURRENT  0x0640 //1600mA
+#define CHARGE_CURRENT_FOR_5V  0x01C0 //448mA
+
 #define CHARGE_VOLTAGE  0x30E0 //12512mV
+
+#define INPUT_VOLTAGE_LIMIT   0x0000 //3200mV
 
 
 
@@ -40,7 +43,7 @@
 #define OTG_VOL_2   9   // 9024 mv
 #define OTG_VOL_3   15  // 15040 mv
 #define OTG_CUR_1   1   // 1024 mA
-#define OTG_CUR_2   2   //  2048 mA
+#define OTG_CUR_2   2   // 2048 mA
 #define OTG_CUR_3   3   // 3008 mA
 
 //do_what
@@ -48,7 +51,7 @@
 #define OTG_FUNCTION    1
 
 #define CHG_OK_PIN      106
-//#define CHG_OK_PIN      26 //for test on Zepplin board
+
 
 //REGISTER_DDR
 #define CHARGE_OPTION_0_WR                              0x00
@@ -76,6 +79,7 @@
 #define ADC_OPTION_WR                                   0x3A
 
 
+int i2c_open_bq25703(void);
 
 
 #endif
