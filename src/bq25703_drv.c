@@ -24,7 +24,7 @@ uint16_t CHARGE_REGISTER_DDR_VALUE_BUF[]=
     /*4*/       CHARGE_VOLTAGE_REGISTER_WR, CHARGE_VOLTAGE,
     /*6*/       OTG_VOLTAGE_REGISTER_WR,    0x0000,
     /*8*/       OTG_CURRENT_REGISTER_WR,    0x0000,
-    /*10*/      INPUT_VOLTAGE_REGISTER_WR,  INPUT_VOLTAGE_LIMIT,
+    /*10*/      INPUT_VOLTAGE_REGISTER_WR,  INPUT_VOLTAGE_LIMIT_3V2, //here should use the default value:0x0000, means 3200mv
     /*12*/      MINIMUM_SYSTEM_VOLTAGE_WR,  0x1800,
     /*14*/      INPUT_CURRENT_REGISTER_WR,  0x4100,
     /*16*/      CHARGE_OPTION_1_WR,         0x0210,
@@ -297,7 +297,7 @@ int bq25703_enable_charge_voltage_and_current(unsigned int charge_current_set)
     }
 
 
-    printf("set charge voltage: %d\n\n",charge_vol);
+    printf("set charge voltage: %dmA\n\n",charge_vol);
 
     if(0 != bq25703a_i2c_write(
            BQ_I2C_ADDR,
@@ -369,6 +369,83 @@ int bq25703a_get_ChargeCurrent(void)
 
 }
 
+
+int bq25703_set_InputVoltageLimit(unsigned int input_voltage_limit_set)
+{
+    int input_voltage_limit = input_voltage_limit_set;
+
+    printf("set charge input voltage limit: %dmA\n",input_voltage_limit + 3200);
+
+    if(0 != bq25703a_i2c_write(
+           BQ_I2C_ADDR,
+           CHARGE_CURRENT_REGISTER_WR,
+           ((unsigned char*)(&input_voltage_limit)),
+           2)
+      )
+    {
+        printf("write Current eer\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+
+int bq25703a_get_InputVoltageLimit(void)
+{
+    unsigned char buf[2] = {0};
+
+    int input_voltage_limit = 3200;
+
+    if(bq25703a_i2c_read(BQ_I2C_ADDR, INPUT_VOLTAGE_REGISTER_WR, buf, 2) != 0)
+    {
+        return -1;
+    }
+    else
+    {
+        printf("read input voltage limit reg: 0x%02x 0x%02x\n",buf[0],buf[1]);
+
+        if(buf[0] & 0x40)
+        {
+            input_voltage_limit += 64;
+        }
+
+        if(buf[0] & 0x80)
+        {
+            input_voltage_limit += 128;
+        }
+
+        if(buf[1] & 0x01)
+        {
+            input_voltage_limit += 256;
+        }
+
+        if(buf[1] & 0x02)
+        {
+            input_voltage_limit += 512;
+        }
+
+        if(buf[1] & 0x04)
+        {
+            input_voltage_limit += 1024;
+        }
+
+        if(buf[1] & 0x08)
+        {
+            input_voltage_limit += 2048;
+        }
+
+        if(buf[1] & 0x10)
+        {
+            input_voltage_limit += 4096;
+        }
+
+        printf("Input Voltage Limit: %dmV\n\n",input_voltage_limit);
+
+        return input_voltage_limit;
+    }
+
+}
 
 int bq25703a_get_BatteryVol_and_SystemVol(unsigned int *p_BatteryVol, unsigned int *p_SystemVol)
 {
@@ -477,8 +554,16 @@ void *bq25703a_chgok_irq_thread(void *arg)
 
     while(1)
     {
+        /*
+        * When VBUS rises above 3.5V or
+        * falls below 24.5V, CHRG_OK is HIGH after 50ms deglitch time. When VBUS is falls below
+        * 3.2 V or rises above 26 V, CHRG_OK is LOW. When fault occurs, CHRG_OK is asserted
+        * LOW.
+        */
+
+        //wait for CHRG_OK to be HIGH,
         ret = poll(fds, 1, -1);
-        printf("poll return = %d\n",ret);
+        printf("poll return = %d, CHRG_OK is HIGH\n",ret);
 
         if(ret > 0)
         {
@@ -495,10 +580,9 @@ void *bq25703a_chgok_irq_thread(void *arg)
 
                 if(value[0] == '1')
                 {
-                    sleep(1); //wait for VBUS stable
+                    sleep(1); //wait for VBUS stable,typical it takes 200ms for VBUS rise from 5V to 15V
 
                     bq25703a_get_VBUS_and_PSYS(&PSys_vol, &VBus_vol);
-
                     printf("get VBus_vol = %d\n",VBus_vol);
 
                     if(VBus_vol < 5500)
@@ -523,6 +607,8 @@ int main(int argc, char* argv[])
 {
     int i;
 
+    unsigned char buf[64];
+
     unsigned int battery_vol;
     unsigned int system_vol;
 
@@ -533,6 +619,8 @@ int main(int argc, char* argv[])
     unsigned int PSYS_vol;
 
     unsigned int charge_current;
+
+    unsigned int input_voltage_limit;
 
     //unsigned char tps65987_port_role;
     //unsigned char tps65987_TypeC_current_type;
@@ -573,6 +661,8 @@ int main(int argc, char* argv[])
         bq25703a_get_CMPINVol_and_InputCurrent(&CMPIN_vol, &input_current);
 
         charge_current = bq25703a_get_ChargeCurrent();
+
+        input_voltage_limit = bq25703a_get_InputVoltageLimit();
 
         //tps65987_port_role = tps65987_get_PortRole();
 
