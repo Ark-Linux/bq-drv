@@ -22,10 +22,11 @@
 #include <poll.h>
 #include <stdint.h>
 
-#define CHARGE_CURRENT  0x0640 //1600mA
-#define CHARGE_CURRENT_FOR_5V  0x01C0 //448mA
+#define CHARGE_CURRENT          0x0640 //1600mA
+#define CHARGE_CURRENT_FOR_5V   0x01C0 //448mA
+#define CHARGE_CURRENT_0        0x0000 //0mA
 
-#define CHARGE_VOLTAGE  0x30E0 //12512mV
+#define CHARGE_VOLTAGE  0x3130 //12592mV
 
 #define INPUT_VOLTAGE_LIMIT_4V8   0x0640 //4800mV
 #define INPUT_VOLTAGE_LIMIT_3V8   0x0280 //3840mV

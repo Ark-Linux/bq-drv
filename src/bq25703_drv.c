@@ -20,7 +20,7 @@ static int fd;
 uint16_t CHARGE_REGISTER_DDR_VALUE_BUF[]=
 {
     /*0*/       CHARGE_OPTION_0_WR,         0x020E,
-    /*2*/       CHARGE_CURRENT_REGISTER_WR, CHARGE_CURRENT,
+    /*2*/       CHARGE_CURRENT_REGISTER_WR, CHARGE_CURRENT_0,
     /*4*/       CHARGE_VOLTAGE_REGISTER_WR, CHARGE_VOLTAGE,
     /*6*/       OTG_VOLTAGE_REGISTER_WR,    0x0000,
     /*8*/       OTG_CURRENT_REGISTER_WR,    0x0000,
@@ -362,7 +362,7 @@ int bq25703a_get_ChargeCurrent(void)
             charge_current += 4096;
         }
 
-        printf("Charge Current: %dmA\n\n",charge_current);
+        printf("Charge Current Max: %dmA\n\n",charge_current);
 
         return charge_current;
     }
@@ -563,12 +563,14 @@ void *bq25703a_chgok_irq_thread(void *arg)
 
         //wait for CHRG_OK to be HIGH,
         ret = poll(fds, 1, -1);
-        printf("poll return = %d, CHRG_OK is HIGH\n",ret);
+        printf("poll rising return = %d\n",ret);
 
         if(ret > 0)
         {
             if(fds[0].revents & POLLPRI)
             {
+                printf("CHRG_OK is HIGH\n",ret);
+
                 if(lseek(fd, 0, SEEK_SET) == -1)
                 {
                     printf("lseek failed!\n");
@@ -587,7 +589,9 @@ void *bq25703a_chgok_irq_thread(void *arg)
 
                     if(VBus_vol < 5500)
                     {
-                        bq25703_enable_charge_voltage_and_current(CHARGE_CURRENT_FOR_5V);
+                        //bq25703_enable_charge_voltage_and_current(CHARGE_CURRENT_FOR_5V);
+                        //just disable 5V charge now
+                        printf("do not charge at 5V\n");
                     }
                     else
                     {
