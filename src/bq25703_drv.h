@@ -22,7 +22,10 @@
 #include <poll.h>
 #include <stdint.h>
 
-#define CHARGE_CURRENT          0x0640 //1600mA
+#define CHARGE_CURRENT          CHARGE_CURRENT_1600mA
+
+#define CHARGE_CURRENT_1600mA   0x0640 //1600mA
+#define CHARGE_CURRENT_832mA    0x0340 //832mA
 #define CHARGE_CURRENT_FOR_5V   0x01C0 //448mA
 #define CHARGE_CURRENT_0        0x0000 //0mA
 

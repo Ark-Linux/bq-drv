@@ -24,8 +24,8 @@ uint16_t CHARGE_REGISTER_DDR_VALUE_BUF[]=
     /*4*/       CHARGE_VOLTAGE_REGISTER_WR, CHARGE_VOLTAGE,
     /*6*/       OTG_VOLTAGE_REGISTER_WR,    0x0000,
     /*8*/       OTG_CURRENT_REGISTER_WR,    0x0000,
-    /*10*/      INPUT_VOLTAGE_REGISTER_WR,  INPUT_VOLTAGE_LIMIT_3V2, //here should use the default value:0x0000, means 3200mv
-    /*12*/      MINIMUM_SYSTEM_VOLTAGE_WR,  0x1800,
+    /*10*/      INPUT_VOLTAGE_REGISTER_WR,  INPUT_VOLTAGE_LIMIT_3V2, //here should use the default value:0x0000, means 3200mV
+    /*12*/      MINIMUM_SYSTEM_VOLTAGE_WR,  0x2400, //The charger provides minimum system voltage, means 9216mV
     /*14*/      INPUT_CURRENT_REGISTER_WR,  0x4100,
     /*16*/      CHARGE_OPTION_1_WR,         0x0210,
     /*18*/      CHARGE_OPTION_2_WR,         0x02B7,
