@@ -1,7 +1,7 @@
 /**
-*  @file      gpio_config.c
-*  @brief     gpio_config
-*  @author    Zack Li
+*  @file      bq25703_drv.c
+*  @brief     bq25703_drv
+*  @author    Zack Li and Link Lin
 *  @date      11 -2019
 *  @copyright
 */
@@ -447,6 +447,7 @@ int bq25703a_get_InputVoltageLimit(void)
 
 }
 
+
 int bq25703a_get_BatteryVol_and_SystemVol(unsigned int *p_BatteryVol, unsigned int *p_SystemVol)
 {
     unsigned char buf[2] = {0};
@@ -470,7 +471,8 @@ int bq25703a_get_BatteryVol_and_SystemVol(unsigned int *p_BatteryVol, unsigned i
     return 0;
 }
 
-int bq25703a_get_VBUS_and_PSYS(unsigned int *p_PSYS_vol, unsigned int *p_VBUS_vol)
+
+int bq25703a_get_PSYS_and_VBUS(unsigned int *p_PSYS_vol, unsigned int *p_VBUS_vol)
 {
     unsigned char buf[2] = {0};
 
@@ -494,6 +496,7 @@ int bq25703a_get_VBUS_and_PSYS(unsigned int *p_PSYS_vol, unsigned int *p_VBUS_vo
 
     return 0;
 }
+
 
 int bq25703a_get_CMPINVol_and_InputCurrent(unsigned int *p_CMPIN_vol, unsigned int *p_input_current)
 {
@@ -521,6 +524,66 @@ int bq25703a_get_CMPINVol_and_InputCurrent(unsigned int *p_CMPIN_vol, unsigned i
 }
 
 
+int bq25703a_get_Battery_Current(unsigned int *p_battery_discharge_current, unsigned int *p_battery_charge_current)
+{
+    unsigned char buf[2] = {0};
+
+    if(bq25703a_i2c_read(BQ_I2C_ADDR, CHARGE_AND_DISCHARGE_CURRENT_READ_BACK_R, buf, 2) != 0)
+    {
+        return -1;
+    }
+    else
+    {
+        printf("read Battery_Current reg: 0x%02x 0x%02x\n",buf[0],buf[1]);
+
+        //IDCHG: Full range: 32.512 A, LSB: 256 mA
+        *p_battery_discharge_current = buf[0] * 256;
+
+        //ICHG: Full range: 8.128 A, LSB: 64 mA
+        *p_battery_charge_current = buf[1] * 64;
+
+        printf("Battery discharge current: %dmA\n",*p_battery_discharge_current);
+        printf("Battery charge current: %dmA\n\n",*p_battery_charge_current);
+    }
+
+    return 0;
+}
+
+
+int bq25703a_get_Charger_Status(void)
+{
+    s_BQ_Charger_Status bq_charger_status = {0};
+
+    s_BQ_Charger_Status *p_bq_charger_status = NULL;
+
+    p_bq_charger_status = &bq_charger_status;
+
+    if(bq25703a_i2c_read(BQ_I2C_ADDR, CHARGE_STATUS_REGISTER_R, (unsigned char*)p_bq_charger_status, 2) != 0)
+    {
+        return -1;
+    }
+
+    printf("get bq25703 Charger Status: \n");
+    printf("Fault_OTG_UCP: %d\n", p_bq_charger_status->Fault_OTG_UCP);
+    printf("Fault_OTG_OVP: %d\n", p_bq_charger_status->Fault_OTG_OVP);
+    printf("Fault_Latchoff: %d\n", p_bq_charger_status->Fault_Latchoff);
+    printf("SYSOVP_STAT: %d\n", p_bq_charger_status->SYSOVP_STAT);
+    printf("Fault_ACOC: %d\n", p_bq_charger_status->Fault_ACOC);
+    printf("Fault_BATOC: %d\n", p_bq_charger_status->Fault_BATOC);
+    printf("Fault_ACOV: %d\n", p_bq_charger_status->Fault_ACOV);
+    printf("IN_OTG: %d\n", p_bq_charger_status->IN_OTG);
+    printf("IN_PCHRG: %d\n", p_bq_charger_status->IN_PCHRG);
+    printf("IN_FCHRG: %d\n", p_bq_charger_status->IN_FCHRG);
+    printf("IN_IINDPM: %d\n", p_bq_charger_status->IN_IINDPM);
+    printf("IN_VINDPM: %d\n", p_bq_charger_status->IN_VINDPM);
+    printf("ICO_DONE: %d\n", p_bq_charger_status->ICO_DONE);
+    printf("AC_STAT: %d\n", p_bq_charger_status->AC_STAT);
+
+    return 0;
+}
+
+
+
 void *bq25703a_chgok_irq_thread(void *arg)
 {
     int ret;
@@ -531,6 +594,8 @@ void *bq25703a_chgok_irq_thread(void *arg)
 
     unsigned int VBus_vol = 0;
     unsigned int PSys_vol = 0;
+
+    int tps65987_TypeC_current_type;
 
     char file_path[64]= {0};
 
@@ -580,22 +645,40 @@ void *bq25703a_chgok_irq_thread(void *arg)
                 n = read(fd, value, sizeof(value));
                 printf("read %d bytes %c %c, count = %d\n", n, value[0],value[1],j++);
 
+                sleep(1); //wait for status to be stable, typical it takes 200ms for VBUS rise from 5V to 15V
+
                 if(value[0] == '1')
                 {
-                    sleep(1); //wait for VBUS stable,typical it takes 200ms for VBUS rise from 5V to 15V
-
-                    bq25703a_get_VBUS_and_PSYS(&PSys_vol, &VBus_vol);
+                    bq25703a_get_PSYS_and_VBUS(&PSys_vol, &VBus_vol);
                     printf("get VBus_vol = %d\n",VBus_vol);
 
-                    if(VBus_vol < 5500)
+                    /*if(VBus_vol < 5500)
                     {
-                        //bq25703_enable_charge_voltage_and_current(CHARGE_CURRENT_FOR_5V);
+                        //bq25703_enable_charge_voltage_and_current(CHARGE_CURRENT_FOR_USB_Default);
                         //just disable 5V charge now
                         printf("do not charge at 5V\n");
                     }
                     else
                     {
-                        bq25703_enable_charge_voltage_and_current(CHARGE_CURRENT);
+                        bq25703_enable_charge_voltage_and_current(CHARGE_CURRENT_FOR_PD);
+                    }*/
+
+
+                    //check TypeC Current type to decide the charge current
+                    tps65987_TypeC_current_type = tps65987_get_TypeC_Current();
+
+                    switch(tps65987_TypeC_current_type)
+                    {
+                        case USB_Default_Current:
+                        case C_1d5A_Current:
+                            bq25703_enable_charge_voltage_and_current(CHARGE_CURRENT_FOR_USB_Default);
+                            break;
+
+                        case C_3A_Current:
+                        case PD_contract_negotiated:
+                            bq25703_enable_charge_voltage_and_current(CHARGE_CURRENT_FOR_PD);
+                            break;
+
                     }
                 }
             }
@@ -622,12 +705,15 @@ int main(int argc, char* argv[])
     unsigned int VBUS_vol;
     unsigned int PSYS_vol;
 
-    unsigned int charge_current;
+    unsigned int battery_charge_current;
+    unsigned int battery_discharge_current;
+
+    unsigned int charge_current_set;
 
     unsigned int input_voltage_limit;
 
-    unsigned char tps65987_port_role;
-    unsigned char tps65987_TypeC_current_type;
+    int tps65987_port_role;
+    int tps65987_TypeC_current_type;
 
     pthread_t thread_check_chgok_ntid;
 
@@ -660,17 +746,21 @@ int main(int argc, char* argv[])
     {
         bq25703a_get_BatteryVol_and_SystemVol(&battery_vol, &system_vol);
 
-        bq25703a_get_VBUS_and_PSYS(&PSYS_vol, &VBUS_vol);
+        bq25703a_get_PSYS_and_VBUS(&PSYS_vol, &VBUS_vol);
 
         bq25703a_get_CMPINVol_and_InputCurrent(&CMPIN_vol, &input_current);
 
-        charge_current = bq25703a_get_ChargeCurrent();
+        bq25703a_get_Battery_Current(&battery_discharge_current, &battery_charge_current);
 
-        input_voltage_limit = bq25703a_get_InputVoltageLimit();
+        charge_current_set = bq25703a_get_ChargeCurrent();
+
+        //input_voltage_limit = bq25703a_get_InputVoltageLimit();
 
         //tps65987_port_role = tps65987_get_PortRole();
 
-        tps65987_TypeC_current_type = tps65987_get_TypeC_Current();
+        //tps65987_TypeC_current_type = tps65987_get_TypeC_Current();
+
+        bq25703a_get_Charger_Status();
 
         printf("\n\n\n");
 

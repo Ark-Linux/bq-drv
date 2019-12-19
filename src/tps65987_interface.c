@@ -221,7 +221,7 @@ int tps65987_i2c_read(unsigned char addr, unsigned char reg, unsigned char *val,
 
     if(i2c_read(fd, addr, reg, buf, data_len+1) == 0)
     {
-        printf("read reg 0x%x = ",reg);
+        printf("read tps65987 reg 0x%x = ",reg);
         for(i = 0; i < data_len; i++)
         {
             val[i] = buf[1+i];

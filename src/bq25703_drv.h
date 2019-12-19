@@ -1,7 +1,7 @@
 /**
 *  @file      bq25703a_drv.h
 *  @brief     bq25703a i2c drv
-*  @author    Zack Li
+*  @author    Zack Li and Link Lin
 *  @date      11 -2019
 *  @copyright
 */
@@ -22,14 +22,19 @@
 #include <poll.h>
 #include <stdint.h>
 
-#define CHARGE_CURRENT          CHARGE_CURRENT_1600mA
 
-#define CHARGE_CURRENT_1600mA   0x0640 //1600mA
-#define CHARGE_CURRENT_832mA    0x0340 //832mA
-#define CHARGE_CURRENT_FOR_5V   0x01C0 //448mA
-#define CHARGE_CURRENT_0        0x0000 //0mA
+#define CHARGE_CURRENT_1600mA               0x0640 //1600mA
+#define CHARGE_CURRENT_832mA                0x0340 //832mA
+#define CHARGE_CURRENT_384mA                0x0180 //384mA
+#define CHARGE_CURRENT_0                    0x0000 //0mA
+
+
+#define CHARGE_CURRENT_FOR_USB_Default      CHARGE_CURRENT_384mA
+#define CHARGE_CURRENT_FOR_PD               CHARGE_CURRENT_1600mA
+
 
 #define CHARGE_VOLTAGE  0x3130 //12592mV
+
 
 #define INPUT_VOLTAGE_LIMIT_4V8   0x0640 //4800mV
 #define INPUT_VOLTAGE_LIMIT_3V8   0x0280 //3840mV
@@ -63,6 +68,29 @@
 #define PROCHOT_OPTION_0_WR                             0x36
 #define PROCHOT_OPTION_1_WR                             0x38
 #define ADC_OPTION_WR                                   0x3A
+
+
+typedef struct
+{
+    unsigned int  Fault_OTG_UCP           :1;
+    unsigned int  Fault_OTG_OVP           :1;
+    unsigned int  Fault_Latchoff          :1;
+    unsigned int  Reserved0               :1;
+    unsigned int  SYSOVP_STAT             :1;
+    unsigned int  Fault_ACOC              :1;
+    unsigned int  Fault_BATOC             :1;
+    unsigned int  Fault_ACOV              :1;
+
+    unsigned int  IN_OTG                  :1;
+    unsigned int  IN_PCHRG                :1;
+    unsigned int  IN_FCHRG                :1;
+    unsigned int  IN_IINDPM               :1;
+    unsigned int  IN_VINDPM               :1;
+    unsigned int  Reserved1               :1;
+    unsigned int  ICO_DONE                :1;
+    unsigned int  AC_STAT                 :1;
+
+} s_BQ_Charger_Status;
 
 
 int i2c_open_bq25703(void);
