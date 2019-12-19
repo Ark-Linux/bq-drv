@@ -626,8 +626,8 @@ int main(int argc, char* argv[])
 
     unsigned int input_voltage_limit;
 
-    //unsigned char tps65987_port_role;
-    //unsigned char tps65987_TypeC_current_type;
+    unsigned char tps65987_port_role;
+    unsigned char tps65987_TypeC_current_type;
 
     pthread_t thread_check_chgok_ntid;
 
@@ -647,11 +647,11 @@ int main(int argc, char* argv[])
 
     bq25703a_charge_function_init();
 
-    /*if(i2c_open_tps65987() != 0)
+    if(i2c_open_tps65987() != 0)
     {
         printf("i2c can't open tps65987!\n");
         return -1;
-    }*/
+    }
 
     //start irq thread
     pthread_create(&thread_check_chgok_ntid, NULL, bq25703a_chgok_irq_thread, NULL);
@@ -670,7 +670,7 @@ int main(int argc, char* argv[])
 
         //tps65987_port_role = tps65987_get_PortRole();
 
-        //tps65987_TypeC_current_type = tps65987_get_TypeC_Current();
+        tps65987_TypeC_current_type = tps65987_get_TypeC_Current();
 
         printf("\n\n\n");
 

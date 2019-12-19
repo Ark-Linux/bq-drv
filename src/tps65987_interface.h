@@ -15,6 +15,9 @@
 #define  REG_PORTCONFIG                 0x28
 #define  REG_BootFlags                  0x2D
 #define  REG_RX_Source_Capabilities     0x30
+#define  REG_Power_Status               0x3F
+
+
 
 typedef struct
 {

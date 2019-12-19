@@ -126,12 +126,12 @@ static int i2c_write(int fd, unsigned char dev_addr, unsigned char *val, unsigne
         return ret;
     }
 
-    printf("i2c write buf = ");
+    /*printf("i2c write buf = ");
     for(i=0; i< len; i++)
     {
         printf("%02x ",val[i]);
     }
-    printf("\n");
+    printf("\n");*/
 
     return 0;
 }
@@ -167,12 +167,12 @@ static int i2c_read(int fd, unsigned char addr, unsigned char reg, unsigned char
         return ret;
     }
 
-    printf("i2c read buf = ");
+    /*printf("i2c read buf = ");
     for(i = 0; i < len; i++)
     {
         printf("%02x ",val[i]);
     }
-    printf("\n");
+    printf("\n");*/
 
     return 0;
 }
@@ -505,7 +505,7 @@ int tps65987_get_TypeC_Current(void)
 
     p_tps_power_status = &tps_power_status;
 
-    if(tps65987_i2c_read(I2C_ADDR, REG_Status, (unsigned char*)p_tps_power_status, 2) == 0)
+    if(tps65987_i2c_read(I2C_ADDR, REG_Power_Status, (unsigned char*)p_tps_power_status, 2) == 0)
     {
         printf("get tps65987 Power Status: \n");
         printf("PowerConnection: %d\n", p_tps_power_status->PowerConnection);
