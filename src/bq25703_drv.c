@@ -10,6 +10,7 @@
 #include "gpio_config.h"
 
 #include "tps65987_interface.h"
+#include "bq40z50_interface.h"
 
 
 #define I2C_FILE_NAME   "/dev/i2c-2"
@@ -577,7 +578,7 @@ int bq25703a_get_Charger_Status(void)
     printf("IN_IINDPM: %d\n", p_bq_charger_status->IN_IINDPM);
     printf("IN_VINDPM: %d\n", p_bq_charger_status->IN_VINDPM);
     printf("ICO_DONE: %d\n", p_bq_charger_status->ICO_DONE);
-    printf("AC_STAT: %d\n", p_bq_charger_status->AC_STAT);
+    printf("AC_STAT: %d\n\n", p_bq_charger_status->AC_STAT);
 
     return 0;
 }
@@ -634,7 +635,7 @@ void *bq25703a_chgok_irq_thread(void *arg)
         {
             if(fds[0].revents & POLLPRI)
             {
-                printf("CHRG_OK is HIGH\n",ret);
+                printf("CHRG_OK is HIGH\n");
 
                 if(lseek(fd, 0, SEEK_SET) == -1)
                 {
@@ -705,8 +706,8 @@ int main(int argc, char* argv[])
     unsigned int VBUS_vol;
     unsigned int PSYS_vol;
 
-    unsigned int battery_charge_current;
-    unsigned int battery_discharge_current;
+    unsigned int battery_charge_current_via_bq;
+    unsigned int battery_discharge_current_via_bq;
 
     unsigned int charge_current_set;
 
@@ -714,6 +715,13 @@ int main(int argc, char* argv[])
 
     int tps65987_port_role;
     int tps65987_TypeC_current_type;
+
+    //get by fuelgauge IC
+    int battery_temperature;
+    int battery_voltage;
+    int battery_current;
+    int battery_relativeStateOfCharge;
+    int battery_absoluteStateOfCharge;
 
     pthread_t thread_check_chgok_ntid;
 
@@ -739,28 +747,39 @@ int main(int argc, char* argv[])
         return -1;
     }
 
+    if(i2c_open_fuelgauge() != 0)
+    {
+        printf("i2c can't open fuelgauge!\n");
+        return -1;
+    }
+
     //start irq thread
     pthread_create(&thread_check_chgok_ntid, NULL, bq25703a_chgok_irq_thread, NULL);
 
     while(1)
     {
-        bq25703a_get_BatteryVol_and_SystemVol(&battery_vol, &system_vol);
-
+        //bq25703a_get_BatteryVol_and_SystemVol(&battery_vol, &system_vol);
         bq25703a_get_PSYS_and_VBUS(&PSYS_vol, &VBUS_vol);
-
-        bq25703a_get_CMPINVol_and_InputCurrent(&CMPIN_vol, &input_current);
-
-        bq25703a_get_Battery_Current(&battery_discharge_current, &battery_charge_current);
-
-        charge_current_set = bq25703a_get_ChargeCurrent();
+        //bq25703a_get_CMPINVol_and_InputCurrent(&CMPIN_vol, &input_current);
+        //bq25703a_get_Battery_Current(&battery_discharge_current_via_bq, &battery_charge_current_via_bq);
 
         //input_voltage_limit = bq25703a_get_InputVoltageLimit();
 
-        //tps65987_port_role = tps65987_get_PortRole();
+        charge_current_set = bq25703a_get_ChargeCurrent();
 
-        //tps65987_TypeC_current_type = tps65987_get_TypeC_Current();
+
+        //tps65987_port_role = tps65987_get_PortRole();
+        tps65987_TypeC_current_type = tps65987_get_TypeC_Current();
 
         bq25703a_get_Charger_Status();
+
+        printf("\n");
+
+        battery_temperature = fuelgauge_get_Battery_Temperature();
+        battery_voltage = fuelgauge_get_Battery_Voltage();
+        battery_current = fuelgauge_get_Battery_Current();
+        battery_relativeStateOfCharge = fuelgauge_get_RelativeStateOfCharge();
+        //battery_absoluteStateOfCharge = fuelgauge_get_AbsoluteStateOfCharge();
 
         printf("\n\n\n");
 

@@ -24,7 +24,7 @@
 //#define I2C_ADDR        0x20
 
 //the I2C addr will change, 0x38 or 0x20
-unsigned int I2C_ADDR = 0x20;
+static unsigned int I2C_ADDR = 0x20;
 
 //supposed to be Little-endian
 int check_endian(void)
