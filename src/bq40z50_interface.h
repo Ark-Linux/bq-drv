@@ -20,5 +20,9 @@ int fuelgauge_get_Battery_Voltage(void);
 int fuelgauge_get_Battery_Current(void);
 int fuelgauge_get_RelativeStateOfCharge(void);
 int fuelgauge_get_AbsoluteStateOfCharge(void);
+int fuelgauge_get_Battery_ChargingCurrent(void);
+int fuelgauge_get_Battery_ChargingVoltage(void);
+int fuelgauge_get_BatteryStatus(void);
+int fuelgauge_check_BatteryFullyCharged(void);
 
 #endif

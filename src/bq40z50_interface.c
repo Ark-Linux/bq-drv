@@ -314,6 +314,7 @@ int fuelgauge_get_Battery_Voltage(void)
     return battery_voltage;
 }
 
+
 int fuelgauge_get_Battery_Current(void)
 {
     unsigned char buf[16];
@@ -334,6 +335,7 @@ int fuelgauge_get_Battery_Current(void)
 
     return battery_current;
 }
+
 
 int fuelgauge_get_RelativeStateOfCharge(void)
 {
@@ -356,6 +358,7 @@ int fuelgauge_get_RelativeStateOfCharge(void)
     return relative_state_of_charge;
 }
 
+
 int fuelgauge_get_AbsoluteStateOfCharge(void)
 {
     unsigned char buf[16];
@@ -376,4 +379,92 @@ int fuelgauge_get_AbsoluteStateOfCharge(void)
 
     return absolute_state_of_charge;
 }
+
+
+int fuelgauge_get_Battery_ChargingCurrent(void)
+{
+    unsigned char buf[16];
+    unsigned char reg;
+
+    signed short battery_charge_current = 0;
+
+    //Charging Current
+    reg = 0x14;
+    if(bq40z50_i2c_read(I2C_ADDR, &reg, 1, buf, 2) != 0)
+    {
+        return -1;
+    }
+
+    battery_charge_current = (signed short)((buf[1]<<8) | buf[0]);
+
+    printf("get battery charge Current %dmA\n\n", battery_charge_current);
+
+    return battery_charge_current;
+}
+
+
+int fuelgauge_get_Battery_ChargingVoltage(void)
+{
+    unsigned char buf[16];
+    unsigned char reg;
+
+    signed short battery_charge_voltage = 0;
+
+    //Charging Voltage
+    reg = 0x15;
+    if(bq40z50_i2c_read(I2C_ADDR, &reg, 1, buf, 2) != 0)
+    {
+        return -1;
+    }
+
+    battery_charge_voltage = (signed short)((buf[1]<<8) | buf[0]);
+
+    printf("get battery charge Current %dmA\n\n", battery_charge_voltage);
+
+    return battery_charge_voltage;
+}
+
+
+int fuelgauge_get_BatteryStatus(void)
+{
+    unsigned char buf[16];
+    unsigned char reg;
+
+    unsigned short battery_status = 0;
+
+    //BatteryStatus
+    reg = 0x16;
+    if(bq40z50_i2c_read(I2C_ADDR, &reg, 1, buf, 2) != 0)
+    {
+        printf("get BatteryStatus err\n");
+        return -1;
+    }
+
+    battery_status = (buf[1]<<8) | buf[0];
+
+    printf("get BatteryStatus %04x\n\n", battery_status);
+
+    return battery_status;
+}
+
+
+int fuelgauge_check_BatteryFullyCharged(void)
+{
+    int battery_status = 0;
+
+    battery_status = fuelgauge_get_BatteryStatus();
+    if( battery_status < 0)
+    {
+        return -1;
+    }
+
+    if(battery_status & 0x0020)
+    {
+        printf("Battery fully charged\n\n");
+        return 1;
+    }
+
+    return 0;
+}
+
 

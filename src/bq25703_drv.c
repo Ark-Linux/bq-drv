@@ -723,6 +723,9 @@ int main(int argc, char* argv[])
     int battery_relativeStateOfCharge;
     int battery_absoluteStateOfCharge;
 
+    int battery_charging_voltage;
+    int battery_charging_current;
+
     pthread_t thread_check_chgok_ntid;
 
     if(argc > 1)
@@ -780,6 +783,14 @@ int main(int argc, char* argv[])
         battery_current = fuelgauge_get_Battery_Current();
         battery_relativeStateOfCharge = fuelgauge_get_RelativeStateOfCharge();
         //battery_absoluteStateOfCharge = fuelgauge_get_AbsoluteStateOfCharge();
+
+        battery_charging_current = fuelgauge_get_Battery_ChargingCurrent();
+        battery_charging_voltage = fuelgauge_get_Battery_ChargingVoltage();
+
+        if(fuelgauge_check_BatteryFullyCharged())
+        {
+            //fully charged
+        }
 
         printf("\n\n\n");
 
