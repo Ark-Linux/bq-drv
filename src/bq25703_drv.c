@@ -769,7 +769,7 @@ int main(int argc, char* argv[])
 
 
         //tps65987_port_role = tps65987_get_PortRole();
-        tps65987_TypeC_current_type = tps65987_get_TypeC_Current();
+        //tps65987_TypeC_current_type = tps65987_get_TypeC_Current();
 
         bq25703a_get_Charger_Status();
 
