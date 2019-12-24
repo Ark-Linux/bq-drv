@@ -419,7 +419,7 @@ int fuelgauge_get_Battery_ChargingVoltage(void)
 
     battery_charge_voltage = (signed short)((buf[1]<<8) | buf[0]);
 
-    printf("get battery charge Current %dmA\n\n", battery_charge_voltage);
+    printf("get battery charge Voltage %dmV\n\n", battery_charge_voltage);
 
     return battery_charge_voltage;
 }
