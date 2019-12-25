@@ -22,7 +22,7 @@ uint16_t CHARGE_REGISTER_DDR_VALUE_BUF[]=
 {
     /*0*/       CHARGE_OPTION_0_WR,         0x020E,
     /*2*/       CHARGE_CURRENT_REGISTER_WR, CHARGE_CURRENT_0,
-    /*4*/       CHARGE_VOLTAGE_REGISTER_WR, CHARGE_VOLTAGE,
+    /*4*/       MaxChargeVoltage_REGISTER_WR, MAX_CHARGE_VOLTAGE,
     /*6*/       OTG_VOLTAGE_REGISTER_WR,    0x0000,
     /*8*/       OTG_CURRENT_REGISTER_WR,    0x0000,
     /*10*/      INPUT_VOLTAGE_REGISTER_WR,  INPUT_VOLTAGE_LIMIT_3V2, //here should use the default value:0x0000, means 3200mV
@@ -40,7 +40,7 @@ uint16_t OTG_REGISTER_DDR_VALUE_BUF[]=
 {
     /*0*/       CHARGE_OPTION_0_WR,         0xE20E,
     /*2*/       CHARGE_CURRENT_REGISTER_WR, 0x0000,
-    /*4*/       CHARGE_VOLTAGE_REGISTER_WR, 0x0000,
+    /*4*/       MaxChargeVoltage_REGISTER_WR, 0x0000,
     /*6*/       OTG_VOLTAGE_REGISTER_WR,    0x0200,
     /*8*/       OTG_CURRENT_REGISTER_WR,    0x0A00,
     /*10*/      INPUT_VOLTAGE_REGISTER_WR,  0x0000,
@@ -279,10 +279,10 @@ int bq25703a_charge_function_init()
 }
 
 
-int bq25703_enable_charge_voltage_and_current(unsigned int charge_current_set)
+int bq25703_set_MaxChargeVoltage_and_Current(unsigned int charge_current_set)
 {
     int charge_current = charge_current_set;
-    int charge_vol = CHARGE_VOLTAGE;
+    int charge_vol = MAX_CHARGE_VOLTAGE;
 
     printf("set charge current: %dmA\n",charge_current);
 
@@ -302,7 +302,7 @@ int bq25703_enable_charge_voltage_and_current(unsigned int charge_current_set)
 
     if(0 != bq25703a_i2c_write(
            BQ_I2C_ADDR,
-           CHARGE_VOLTAGE_REGISTER_WR,
+           MaxChargeVoltage_REGISTER_WR,
            ((unsigned char*)(&charge_vol)),
            2)
       )
@@ -655,13 +655,13 @@ void *bq25703a_chgok_irq_thread(void *arg)
 
                     /*if(VBus_vol < 5500)
                     {
-                        //bq25703_enable_charge_voltage_and_current(CHARGE_CURRENT_FOR_USB_Default);
+                        //bq25703_set_MaxChargeVoltage_and_Current(CHARGE_CURRENT_FOR_USB_Default);
                         //just disable 5V charge now
                         printf("do not charge at 5V\n");
                     }
                     else
                     {
-                        bq25703_enable_charge_voltage_and_current(CHARGE_CURRENT_FOR_PD);
+                        bq25703_set_MaxChargeVoltage_and_Current(CHARGE_CURRENT_FOR_PD);
                     }*/
 
 
@@ -672,12 +672,12 @@ void *bq25703a_chgok_irq_thread(void *arg)
                     {
                         case USB_Default_Current:
                         case C_1d5A_Current:
-                            bq25703_enable_charge_voltage_and_current(CHARGE_CURRENT_FOR_USB_Default);
+                            bq25703_set_MaxChargeVoltage_and_Current(CHARGE_CURRENT_FOR_USB_Default);
                             break;
 
                         case C_3A_Current:
                         case PD_contract_negotiated:
-                            bq25703_enable_charge_voltage_and_current(CHARGE_CURRENT_FOR_PD);
+                            bq25703_set_MaxChargeVoltage_and_Current(CHARGE_CURRENT_FOR_PD);
                             break;
 
                     }

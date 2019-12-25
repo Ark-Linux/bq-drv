@@ -33,7 +33,7 @@
 #define CHARGE_CURRENT_FOR_PD               CHARGE_CURRENT_1600mA
 
 
-#define CHARGE_VOLTAGE  0x3130 //12592mV
+#define MAX_CHARGE_VOLTAGE  0x3130 //12592mV
 
 
 #define INPUT_VOLTAGE_LIMIT_4V8   0x0640 //4800mV
@@ -47,7 +47,7 @@
 //REGISTER_DDR
 #define CHARGE_OPTION_0_WR                              0x00
 #define CHARGE_CURRENT_REGISTER_WR                      0x02
-#define CHARGE_VOLTAGE_REGISTER_WR                      0x04
+#define MaxChargeVoltage_REGISTER_WR                    0x04
 #define OTG_VOLTAGE_REGISTER_WR                         0x06
 #define OTG_CURRENT_REGISTER_WR                         0x08
 #define INPUT_VOLTAGE_REGISTER_WR                       0x0A
