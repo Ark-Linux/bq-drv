@@ -10,16 +10,7 @@
 #define _BQ25703A_H_
 
 #include <stdio.h>
-#include <fcntl.h>
-#include <error.h>
-#include <unistd.h>
-#include <sys/ioctl.h>
-#include <string.h>
 #include <stdlib.h>
-#include <linux/i2c.h>
-#include <linux/i2c-dev.h>
-#include <pthread.h>
-#include <poll.h>
 #include <stdint.h>
 
 
@@ -33,6 +24,7 @@
 #define CHARGE_CURRENT_FOR_PD               CHARGE_CURRENT_1600mA
 
 
+//12.592V for 3-cell
 #define MAX_CHARGE_VOLTAGE  0x3130 //12592mV
 
 
@@ -44,30 +36,28 @@
 #define CHG_OK_PIN      106
 
 
-//REGISTER_DDR
-#define CHARGE_OPTION_0_WR                              0x00
-#define CHARGE_CURRENT_REGISTER_WR                      0x02
-#define MaxChargeVoltage_REGISTER_WR                    0x04
-#define OTG_VOLTAGE_REGISTER_WR                         0x06
-#define OTG_CURRENT_REGISTER_WR                         0x08
-#define INPUT_VOLTAGE_REGISTER_WR                       0x0A
-#define MINIMUM_SYSTEM_VOLTAGE_WR                       0x0C
-#define INPUT_CURRENT_REGISTER_WR                       0x0E
-#define CHARGE_STATUS_REGISTER_R                        0x20
-#define PROCHOT_STATUS_REGISTER_R                       0x22
-#define INPUT_CURRENT_LIMIT_IN_USE_R                    0x24
-#define VBUS_AND_PSYS_VOLTAGE_READ_BACK_R               0x26
-#define CHARGE_AND_DISCHARGE_CURRENT_READ_BACK_R        0x28
-#define INPUT_CURRENT_AND_CMPIN_VOLTAGE_READ_BACK_R     0x2A
-#define SYSTEM_AND_BATTERY_VOLTAGE_READ_BACK_R          0x2C
-#define MANUFACTURE_ID_AND_DEVICE_ID_READ_BACK_R        0x2E
-#define DEVICE_ID_READ_BACK_R                           0x2F
-#define CHARGE_OPTION_1_WR                              0x30
-#define CHARGE_OPTION_2_WR                              0x32
-#define CHARGE_OPTION_3_WR                              0x34
-#define PROCHOT_OPTION_0_WR                             0x36
-#define PROCHOT_OPTION_1_WR                             0x38
-#define ADC_OPTION_WR                                   0x3A
+/*
+* battery charge and discharge THRESHOLD,
+* 2730 means 0°C
+*/
+//charge
+#define BATTERY_CHARGE_STOP_TEMPERATURE_LOW_THRESHOLD               (2730)
+#define BATTERY_CHARGE_RECOVERY_TEMPERATURE_LOW_THRESHOLD           (2730 + 50)
+
+#define BATTERY_CHARGE_STOP_TEMPERATURE_HIGH_THRESHOLD              (2730 + 450)
+#define BATTERY_CHARGE_ALLOW_TEMPERATURE_HIGH_THRESHOLD             (2730 + 400)
+
+
+//discharge
+#define BATTERY_DISCHARGE_STOP_TEMPERATURE_LOW_THRESHOLD            (2730 - 200)
+#define BATTERY_DISCHARGE_ALLOW_TEMPERATURE_LOW_THRESHOLD           (2730 - 150)
+
+#define BATTERY_DISCHARGE_STOP_TEMPERATURE_HIGH_THRESHOLD           (2730 + 600)
+#define BATTERY_DISCHARGE_ALLOW_TEMPERATURE_HIGH_THRESHOLD          (2730 + 550)
+
+#define BATTERY_DISCHARGE_ADJUST_EQ_TEMPERATURE_HIGH_THRESHOLD      (2730 + 500)
+#define BATTERY_DISCHARGE_RECOVERY_EQ_TEMPERATURE_HIGH_THRESHOLD    (2730 + 450)
+
 
 
 typedef struct

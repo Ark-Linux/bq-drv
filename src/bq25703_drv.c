@@ -6,6 +6,19 @@
 *  @copyright
 */
 
+#include <stdio.h>
+#include <fcntl.h>
+#include <error.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
+#include <string.h>
+#include <stdlib.h>
+#include <linux/i2c.h>
+#include <linux/i2c-dev.h>
+#include <pthread.h>
+#include <poll.h>
+#include <stdint.h>
+
 #include "bq25703_drv.h"
 #include "gpio_config.h"
 
@@ -16,7 +29,37 @@
 #define I2C_FILE_NAME   "/dev/i2c-2"
 #define BQ_I2C_ADDR        0x6B
 
-static int fd;
+static int fd_i2c;
+
+int fd_chg_ok_pin;
+struct pollfd fds_chg_ok_pin[1];
+
+
+//BQ25703 REGISTER_ADDR
+#define CHARGE_OPTION_0_WR                              0x00
+#define CHARGE_CURRENT_REGISTER_WR                      0x02
+#define MaxChargeVoltage_REGISTER_WR                    0x04
+#define OTG_VOLTAGE_REGISTER_WR                         0x06
+#define OTG_CURRENT_REGISTER_WR                         0x08
+#define INPUT_VOLTAGE_REGISTER_WR                       0x0A
+#define MINIMUM_SYSTEM_VOLTAGE_WR                       0x0C
+#define INPUT_CURRENT_REGISTER_WR                       0x0E
+#define CHARGE_STATUS_REGISTER_R                        0x20
+#define PROCHOT_STATUS_REGISTER_R                       0x22
+#define INPUT_CURRENT_LIMIT_IN_USE_R                    0x24
+#define VBUS_AND_PSYS_VOLTAGE_READ_BACK_R               0x26
+#define CHARGE_AND_DISCHARGE_CURRENT_READ_BACK_R        0x28
+#define INPUT_CURRENT_AND_CMPIN_VOLTAGE_READ_BACK_R     0x2A
+#define SYSTEM_AND_BATTERY_VOLTAGE_READ_BACK_R          0x2C
+#define MANUFACTURE_ID_AND_DEVICE_ID_READ_BACK_R        0x2E
+#define DEVICE_ID_READ_BACK_R                           0x2F
+#define CHARGE_OPTION_1_WR                              0x30
+#define CHARGE_OPTION_2_WR                              0x32
+#define CHARGE_OPTION_3_WR                              0x34
+#define PROCHOT_OPTION_0_WR                             0x36
+#define PROCHOT_OPTION_1_WR                             0x38
+#define ADC_OPTION_WR                                   0x3A
+
 
 uint16_t CHARGE_REGISTER_DDR_VALUE_BUF[]=
 {
@@ -55,23 +98,31 @@ uint16_t OTG_REGISTER_DDR_VALUE_BUF[]=
 };
 
 
+struct BATTERY_MANAAGE_PARA
+{
+    unsigned char battery_fully_charged;
+
+} battery_manage_para;
+
+
+
 int i2c_open_bq25703(void)
 {
     int ret;
     int val;
 
-    fd = open(I2C_FILE_NAME, O_RDWR);
+    fd_i2c = open(I2C_FILE_NAME, O_RDWR);
 
-    if(fd < 0)
+    if(fd_i2c < 0)
     {
         perror("Unable to open i2c control file");
 
         return -1;
     }
 
-    printf("open i2c file success %d\n",fd);
+    printf("open i2c file success %d\n",fd_i2c);
 
-    ret = ioctl(fd, I2C_SLAVE_FORCE, BQ_I2C_ADDR);
+    ret = ioctl(fd_i2c, I2C_SLAVE_FORCE, BQ_I2C_ADDR);
     if (ret < 0)
     {
         perror("i2c: Failed to set i2c device address\n");
@@ -81,7 +132,7 @@ int i2c_open_bq25703(void)
     printf("i2c: set i2c device address success\n");
 
     val = 3;
-    ret = ioctl(fd, I2C_RETRIES, val);
+    ret = ioctl(fd_i2c, I2C_RETRIES, val);
     if(ret < 0)
     {
         printf("i2c: set i2c retry times err\n");
@@ -111,9 +162,9 @@ static int i2c_write(unsigned char dev_addr, unsigned char *val, unsigned char l
     data.msgs = &messages;
     data.nmsgs = 1;
 
-    if(ioctl(fd, I2C_RDWR, &data) < 0)
+    if(ioctl(fd_i2c, I2C_RDWR, &data) < 0)
     {
-        printf("write ioctl err %d\n",fd);
+        printf("write ioctl err %d\n",fd_i2c);
         return -1;
     }
 
@@ -149,10 +200,10 @@ static int i2c_read(unsigned char addr, unsigned char reg, unsigned char *val, u
     data.msgs = messages;
     data.nmsgs = 2;
 
-    if(ioctl(fd, I2C_RDWR, &data) < 0)
+    if(ioctl(fd_i2c, I2C_RDWR, &data) < 0)
     {
         perror("---");
-        printf("read ioctl err %d\n",fd);
+        printf("read ioctl err %d\n",fd_i2c);
 
         return -1;
     }
@@ -313,6 +364,7 @@ int bq25703_set_MaxChargeVoltage_and_Current(unsigned int charge_current_set)
 
     return 0;
 }
+
 
 int bq25703a_get_ChargeCurrent(void)
 {
@@ -584,20 +636,56 @@ int bq25703a_get_Charger_Status(void)
 }
 
 
-
-void *bq25703a_chgok_irq_thread(void *arg)
+void bq25703_stop_charge(void)
 {
-    int ret;
-    int n;
+    bq25703_set_MaxChargeVoltage_and_Current(CHARGE_CURRENT_0);
+}
 
-    unsigned char value[4];
-    unsigned char j = 0;
 
+void bq25703_enable_charge(void)
+{
     unsigned int VBus_vol = 0;
     unsigned int PSys_vol = 0;
 
     int tps65987_TypeC_current_type;
 
+    bq25703a_get_PSYS_and_VBUS(&PSys_vol, &VBus_vol);
+    printf("get VBus_vol = %d\n",VBus_vol);
+
+    /*if(VBus_vol < 5500)
+    {
+        //bq25703_set_MaxChargeVoltage_and_Current(CHARGE_CURRENT_FOR_USB_Default);
+        //just disable 5V charge now
+        printf("do not charge at 5V\n");
+    }
+    else
+    {
+        bq25703_set_MaxChargeVoltage_and_Current(CHARGE_CURRENT_FOR_PD);
+    }*/
+
+
+    //check TypeC Current type to decide the charge current
+    tps65987_TypeC_current_type = tps65987_get_TypeC_Current();
+
+    switch(tps65987_TypeC_current_type)
+    {
+        case USB_Default_Current:
+        case C_1d5A_Current:
+            bq25703_set_MaxChargeVoltage_and_Current(CHARGE_CURRENT_FOR_USB_Default);
+            break;
+
+        case C_3A_Current:
+        case PD_contract_negotiated:
+            bq25703_set_MaxChargeVoltage_and_Current(CHARGE_CURRENT_FOR_PD);
+            break;
+
+    }
+
+}
+
+
+int init_Chg_OK_Pin(void)
+{
     char file_path[64]= {0};
 
     int pin_number = CHG_OK_PIN;
@@ -607,16 +695,28 @@ void *bq25703a_chgok_irq_thread(void *arg)
     set_edge(pin_number, "rising");
 
     sprintf(file_path, "/sys/class/gpio/gpio%d/value", pin_number);
-    int fd = open(file_path, O_RDONLY);
-    if(fd < 0)
+
+    fd_chg_ok_pin = open(file_path, O_RDONLY);
+    if(fd_chg_ok_pin < 0)
     {
         printf("can't open %s!\n", file_path);
-        return ((void *)0);
+        return -1;
     }
 
-    struct pollfd fds[1];
-    fds[0].fd = fd;
-    fds[0].events = POLLPRI;
+    return 0;
+}
+
+
+void *bq25703a_chgok_irq_thread(void *arg)
+{
+    int ret;
+    int n;
+
+    unsigned char value[4];
+    unsigned char j = 0;
+
+    fds_chg_ok_pin[0].fd = fd_chg_ok_pin;
+    fds_chg_ok_pin[0].events = POLLPRI;
 
     while(1)
     {
@@ -627,66 +727,35 @@ void *bq25703a_chgok_irq_thread(void *arg)
         * LOW.
         */
 
-        //wait for CHRG_OK to be HIGH,
-        ret = poll(fds, 1, -1);
+        //wait for CHRG_OK to be RISING HIGH
+        ret = poll(fds_chg_ok_pin, 1, -1);
         printf("poll rising return = %d\n",ret);
 
         if(ret > 0)
         {
-            if(fds[0].revents & POLLPRI)
+            if(fds_chg_ok_pin[0].revents & POLLPRI)
             {
-                printf("CHRG_OK is HIGH\n");
+                printf("CHRG_OK is RISING HIGH\n");
 
-                if(lseek(fd, 0, SEEK_SET) == -1)
+                sleep(1); //wait for status to be stable, typical it takes 200ms for VBUS rise from 5V to 15V
+
+                if(lseek(fd_chg_ok_pin, 0, SEEK_SET) == -1)
                 {
                     printf("lseek failed!\n");
                     break;
                 }
 
-                n = read(fd, value, sizeof(value));
+                n = read(fd_chg_ok_pin, value, sizeof(value));
                 printf("read %d bytes %c %c, count = %d\n", n, value[0],value[1],j++);
-
-                sleep(1); //wait for status to be stable, typical it takes 200ms for VBUS rise from 5V to 15V
 
                 if(value[0] == '1')
                 {
-                    bq25703a_get_PSYS_and_VBUS(&PSys_vol, &VBus_vol);
-                    printf("get VBus_vol = %d\n",VBus_vol);
-
-                    /*if(VBus_vol < 5500)
-                    {
-                        //bq25703_set_MaxChargeVoltage_and_Current(CHARGE_CURRENT_FOR_USB_Default);
-                        //just disable 5V charge now
-                        printf("do not charge at 5V\n");
-                    }
-                    else
-                    {
-                        bq25703_set_MaxChargeVoltage_and_Current(CHARGE_CURRENT_FOR_PD);
-                    }*/
-
-
-                    //check TypeC Current type to decide the charge current
-                    tps65987_TypeC_current_type = tps65987_get_TypeC_Current();
-
-                    switch(tps65987_TypeC_current_type)
-                    {
-                        case USB_Default_Current:
-                        case C_1d5A_Current:
-                            bq25703_set_MaxChargeVoltage_and_Current(CHARGE_CURRENT_FOR_USB_Default);
-                            break;
-
-                        case C_3A_Current:
-                        case PD_contract_negotiated:
-                            bq25703_set_MaxChargeVoltage_and_Current(CHARGE_CURRENT_FOR_PD);
-                            break;
-
-                    }
+                    bq25703_enable_charge();
                 }
             }
         }
     }
 
-    unregister_gpiox(pin_number);
     pthread_exit("bq25703a_chgok_irq_thread exit");
 }
 
@@ -744,6 +813,7 @@ int main(int argc, char* argv[])
 
     bq25703a_charge_function_init();
 
+
     if(i2c_open_tps65987() != 0)
     {
         printf("i2c can't open tps65987!\n");
@@ -753,6 +823,13 @@ int main(int argc, char* argv[])
     if(i2c_open_fuelgauge() != 0)
     {
         printf("i2c can't open fuelgauge!\n");
+        return -1;
+    }
+
+
+    if(init_Chg_OK_Pin() != 0)
+    {
+        printf("init Chg_OK_Pin fail!\n");
         return -1;
     }
 
@@ -789,7 +866,17 @@ int main(int argc, char* argv[])
 
         if(fuelgauge_check_BatteryFullyCharged())
         {
-            //fully charged
+            if(!battery_manage_para.battery_fully_charged)
+            {
+                bq25703_stop_charge();
+
+                battery_manage_para.battery_fully_charged = 1;
+                printf("fully charged, stop charging!\n");
+            }
+        }
+        else
+        {
+            battery_manage_para.battery_fully_charged = 0;
         }
 
         printf("\n\n\n");
