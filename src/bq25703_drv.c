@@ -101,8 +101,9 @@ uint16_t OTG_REGISTER_DDR_VALUE_BUF[]=
 struct BATTERY_MANAAGE_PARA
 {
     unsigned char battery_fully_charged;
+    unsigned char need_charge_flag;
 
-} battery_manage_para;
+} batteryManagePara;
 
 
 
@@ -636,14 +637,16 @@ int bq25703a_get_Charger_Status(void)
 }
 
 
-void bq25703_stop_charge(void)
+int bq25703_stop_charge(void)
 {
-    bq25703_set_MaxChargeVoltage_and_Current(CHARGE_CURRENT_0);
+    return bq25703_set_MaxChargeVoltage_and_Current(CHARGE_CURRENT_0);
 }
 
 
-void bq25703_enable_charge(void)
+int bq25703_enable_charge(void)
 {
+    int ret;
+
     unsigned int VBus_vol = 0;
     unsigned int PSys_vol = 0;
 
@@ -671,15 +674,17 @@ void bq25703_enable_charge(void)
     {
         case USB_Default_Current:
         case C_1d5A_Current:
-            bq25703_set_MaxChargeVoltage_and_Current(CHARGE_CURRENT_FOR_USB_Default);
+            ret = bq25703_set_MaxChargeVoltage_and_Current(CHARGE_CURRENT_FOR_USB_Default);
             break;
 
         case C_3A_Current:
         case PD_contract_negotiated:
-            bq25703_set_MaxChargeVoltage_and_Current(CHARGE_CURRENT_FOR_PD);
+            ret = bq25703_set_MaxChargeVoltage_and_Current(CHARGE_CURRENT_FOR_PD);
             break;
 
     }
+
+    return ret;
 
 }
 
@@ -722,6 +727,54 @@ int get_Chg_OK_Pin_value(void)
     printf("read %d bytes %c %c\n", n, value[0],value[1]);
 
     return value[0];
+}
+
+
+void batteryManagePara_init(void)
+{
+    batteryManagePara.battery_fully_charged = 0;
+    batteryManagePara.need_charge_flag = 0;
+}
+
+
+void check_BatteryFullyCharged_handle(void)
+{
+    switch(fuelgauge_check_BatteryFullyCharged())
+    {
+        case 1:
+            if(!batteryManagePara.battery_fully_charged)
+            {
+                if(bq25703_stop_charge() != 0)
+                {
+                    break;
+                }
+
+                printf("fully charged, stop charging!\n");
+            }
+
+            batteryManagePara.battery_fully_charged = 1;
+            batteryManagePara.need_charge_flag = 0;
+            break;
+
+        case 0:
+            if(!batteryManagePara.need_charge_flag)
+            {
+                if(get_Chg_OK_Pin_value() == '1')
+                {
+                    if(bq25703_enable_charge() != 0)
+                    {
+                        return;
+                    }
+                }
+            }
+
+            batteryManagePara.battery_fully_charged = 0;
+            batteryManagePara.need_charge_flag = 1;
+            break;
+
+        default:
+            break;
+    }
 }
 
 
@@ -770,23 +823,10 @@ int main(int argc, char* argv[])
 {
     int i;
 
-    unsigned char buf[64];
-
-    unsigned int battery_vol;
-    unsigned int system_vol;
-
-    unsigned int CMPIN_vol;
-    unsigned int input_current;
-
     unsigned int VBUS_vol;
     unsigned int PSYS_vol;
 
-    unsigned int battery_charge_current_via_bq;
-    unsigned int battery_discharge_current_via_bq;
-
     unsigned int charge_current_set;
-
-    unsigned int input_voltage_limit;
 
     int tps65987_port_role;
     int tps65987_TypeC_current_type;
@@ -798,9 +838,6 @@ int main(int argc, char* argv[])
     int battery_relativeStateOfCharge;
     int battery_absoluteStateOfCharge;
 
-    int battery_charging_voltage;
-    int battery_charging_current;
-
     pthread_t thread_check_chgok_ntid;
 
     if(argc > 1)
@@ -810,6 +847,8 @@ int main(int argc, char* argv[])
             printf("Argument %d is %s\n", i, argv[i]);
         }
     }
+
+    batteryManagePara_init();
 
     if(i2c_open_bq25703() != 0)
     {
@@ -846,27 +885,14 @@ int main(int argc, char* argv[])
     {
         bq25703a_get_PSYS_and_VBUS(&PSYS_vol, &VBUS_vol);
 
-        //charge_current_set = bq25703a_get_ChargeCurrent();
+        charge_current_set = bq25703a_get_ChargeCurrent();
 
         battery_temperature = fuelgauge_get_Battery_Temperature();
         battery_voltage = fuelgauge_get_Battery_Voltage();
         battery_current = fuelgauge_get_Battery_Current();
         battery_relativeStateOfCharge = fuelgauge_get_RelativeStateOfCharge();
 
-        if(fuelgauge_check_BatteryFullyCharged())
-        {
-            if(!battery_manage_para.battery_fully_charged)
-            {
-                bq25703_stop_charge();
-
-                battery_manage_para.battery_fully_charged = 1;
-                printf("fully charged, stop charging!\n");
-            }
-        }
-        else
-        {
-            battery_manage_para.battery_fully_charged = 0;
-        }
+        check_BatteryFullyCharged_handle();
 
         printf("\n\n\n");
 
