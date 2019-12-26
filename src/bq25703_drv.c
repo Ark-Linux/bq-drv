@@ -707,12 +707,27 @@ int init_Chg_OK_Pin(void)
 }
 
 
+int get_Chg_OK_Pin_value(void)
+{
+    unsigned char value[4];
+    int n;
+
+    if(lseek(fd_chg_ok_pin, 0, SEEK_SET) == -1)
+    {
+        printf("lseek failed!\n");
+        return -1;
+    }
+
+    n = read(fd_chg_ok_pin, value, sizeof(value));
+    printf("read %d bytes %c %c\n", n, value[0],value[1]);
+
+    return value[0];
+}
+
+
 void *bq25703a_chgok_irq_thread(void *arg)
 {
     int ret;
-    int n;
-
-    unsigned char value[4];
     unsigned char j = 0;
 
     fds_chg_ok_pin[0].fd = fd_chg_ok_pin;
@@ -727,7 +742,7 @@ void *bq25703a_chgok_irq_thread(void *arg)
         * LOW.
         */
 
-        //wait for CHRG_OK to be RISING HIGH
+        //wait for CHRG_OK Pin to be RISING HIGH
         ret = poll(fds_chg_ok_pin, 1, -1);
         printf("poll rising return = %d\n",ret);
 
@@ -735,20 +750,11 @@ void *bq25703a_chgok_irq_thread(void *arg)
         {
             if(fds_chg_ok_pin[0].revents & POLLPRI)
             {
-                printf("CHRG_OK is RISING HIGH\n");
+                printf("CHRG_OK Rising HIGH, count = %d\n", j++);
 
                 sleep(1); //wait for status to be stable, typical it takes 200ms for VBUS rise from 5V to 15V
 
-                if(lseek(fd_chg_ok_pin, 0, SEEK_SET) == -1)
-                {
-                    printf("lseek failed!\n");
-                    break;
-                }
-
-                n = read(fd_chg_ok_pin, value, sizeof(value));
-                printf("read %d bytes %c %c, count = %d\n", n, value[0],value[1],j++);
-
-                if(value[0] == '1')
+                if(get_Chg_OK_Pin_value() == '1')
                 {
                     bq25703_enable_charge();
                 }
@@ -838,31 +844,14 @@ int main(int argc, char* argv[])
 
     while(1)
     {
-        //bq25703a_get_BatteryVol_and_SystemVol(&battery_vol, &system_vol);
         bq25703a_get_PSYS_and_VBUS(&PSYS_vol, &VBUS_vol);
-        //bq25703a_get_CMPINVol_and_InputCurrent(&CMPIN_vol, &input_current);
-        //bq25703a_get_Battery_Current(&battery_discharge_current_via_bq, &battery_charge_current_via_bq);
 
-        //input_voltage_limit = bq25703a_get_InputVoltageLimit();
-
-        charge_current_set = bq25703a_get_ChargeCurrent();
-
-
-        //tps65987_port_role = tps65987_get_PortRole();
-        //tps65987_TypeC_current_type = tps65987_get_TypeC_Current();
-
-        bq25703a_get_Charger_Status();
-
-        printf("\n");
+        //charge_current_set = bq25703a_get_ChargeCurrent();
 
         battery_temperature = fuelgauge_get_Battery_Temperature();
         battery_voltage = fuelgauge_get_Battery_Voltage();
         battery_current = fuelgauge_get_Battery_Current();
         battery_relativeStateOfCharge = fuelgauge_get_RelativeStateOfCharge();
-        //battery_absoluteStateOfCharge = fuelgauge_get_AbsoluteStateOfCharge();
-
-        battery_charging_current = fuelgauge_get_Battery_ChargingCurrent();
-        battery_charging_voltage = fuelgauge_get_Battery_ChargingVoltage();
 
         if(fuelgauge_check_BatteryFullyCharged())
         {
