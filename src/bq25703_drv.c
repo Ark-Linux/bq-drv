@@ -736,6 +736,12 @@ void batteryManagePara_init(void)
     batteryManagePara.need_charge_flag = 0;
 }
 
+void batteryManagePara_clear(void)
+{
+    batteryManagePara.battery_fully_charged = 0;
+    batteryManagePara.need_charge_flag = 0;
+}
+
 
 void check_BatteryFullyCharged_handle(void)
 {
@@ -806,6 +812,9 @@ void *bq25703a_chgok_irq_thread(void *arg)
                 printf("CHRG_OK Rising HIGH, count = %d\n", j++);
 
                 sleep(1); //wait for status to be stable, typical it takes 200ms for VBUS rise from 5V to 15V
+
+                //reset the params when AC plug IN
+                batteryManagePara_clear();
 
                 if(get_Chg_OK_Pin_value() == '1')
                 {
