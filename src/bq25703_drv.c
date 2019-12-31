@@ -61,9 +61,15 @@ struct pollfd fds_chg_ok_pin[1];
 #define ADC_OPTION_WR                                   0x3A
 
 
+
+#define     CHARGE_OPTION_0_SETTING         0x020E
+
+#define     EN_LEARN                        0x0020
+
+
 uint16_t CHARGE_REGISTER_DDR_VALUE_BUF[]=
 {
-    /*0*/       CHARGE_OPTION_0_WR,         0x020E,
+    /*0*/       CHARGE_OPTION_0_WR,         CHARGE_OPTION_0_SETTING,
     /*2*/       CHARGE_CURRENT_REGISTER_WR, CHARGE_CURRENT_0,
     /*4*/       MaxChargeVoltage_REGISTER_WR, MAX_CHARGE_VOLTAGE,
     /*6*/       OTG_VOLTAGE_REGISTER_WR,    0x0000,
@@ -334,7 +340,7 @@ int bq25703a_charge_function_init()
 }
 
 
-int bq25703_set_MaxChargeVoltage_and_Current(unsigned int charge_current_set)
+int bq25703_set_ChargeCurrent(unsigned int charge_current_set)
 {
     int charge_current = charge_current_set;
     int charge_vol = MAX_CHARGE_VOLTAGE;
@@ -353,7 +359,7 @@ int bq25703_set_MaxChargeVoltage_and_Current(unsigned int charge_current_set)
     }
 
 
-    printf("set charge voltage: %dmA\n\n",charge_vol);
+    /*printf("set charge voltage: %dmA\n\n",charge_vol);
 
     if(0 != bq25703a_i2c_write(
            BQ_I2C_ADDR,
@@ -364,7 +370,7 @@ int bq25703_set_MaxChargeVoltage_and_Current(unsigned int charge_current_set)
     {
         printf("write VOLTAGE eer\n");
         return -1;
-    }
+    }*/
 
     return 0;
 }
@@ -640,9 +646,60 @@ int bq25703a_get_Charger_Status(void)
 }
 
 
+int bq25703_init_ChargeOption_0(void)
+{
+    int charge_option_0_setting = CHARGE_OPTION_0_SETTING;
+
+    printf("charge_option_0_setting: %04x\n",charge_option_0_setting);
+
+    if(0 != bq25703a_i2c_write(
+           BQ_I2C_ADDR,
+           CHARGE_OPTION_0_WR,
+           ((unsigned char*)(&charge_option_0_setting)),
+           2)
+      )
+    {
+        printf("write reg eer\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+
+/*
+* LEARN function allows the battery to discharge while the adapter is present. It
+* calibrates the battery gas gauge over a complete discharge/charge cycle. When
+* the battery voltage is below battery depletion threshold, the system switches
+* back to adapter input by the host. When CELL_BATPRESZ pin is LOW, the
+* device exits LEARN mode and this bit is set back to 0
+*/
+int bq25703_enter_LEARN_Mode(void)
+{
+    int charge_option_0_setting = CHARGE_OPTION_0_SETTING | EN_LEARN;
+
+    printf("charge_option_0_setting: %04x\n",charge_option_0_setting);
+
+    if(0 != bq25703a_i2c_write(
+           BQ_I2C_ADDR,
+           CHARGE_OPTION_0_WR,
+           ((unsigned char*)(&charge_option_0_setting)),
+           2)
+      )
+    {
+        printf("write reg eer\n");
+        return -1;
+    }
+
+    printf("\nbq25703 enter LEARN_Mode\n\n\n");
+
+    return 0;
+}
+
+
 int bq25703_stop_charge(void)
 {
-    return bq25703_set_MaxChargeVoltage_and_Current(CHARGE_CURRENT_0);
+    return bq25703_set_ChargeCurrent(CHARGE_CURRENT_0);
 }
 
 
@@ -660,14 +717,20 @@ int bq25703_enable_charge(void)
 
     /*if(VBus_vol < 5500)
     {
-        //bq25703_set_MaxChargeVoltage_and_Current(CHARGE_CURRENT_FOR_USB_Default);
+        //bq25703_set_ChargeCurrent(CHARGE_CURRENT_FOR_USB_Default);
         //just disable 5V charge now
         printf("do not charge at 5V\n");
     }
     else
     {
-        bq25703_set_MaxChargeVoltage_and_Current(CHARGE_CURRENT_FOR_PD);
+        bq25703_set_ChargeCurrent(CHARGE_CURRENT_FOR_PD);
     }*/
+
+
+    if(bq25703_init_ChargeOption_0() != 0)
+    {
+        return -1;
+    }
 
 
     //check TypeC Current type to decide the charge current
@@ -676,13 +739,16 @@ int bq25703_enable_charge(void)
     switch(tps65987_TypeC_current_type)
     {
         case USB_Default_Current:
+            //disable USB default Current charger, use the Battery to discharge directly to the system
+            ret = bq25703_enter_LEARN_Mode();
+            break;
         case C_1d5A_Current:
-            ret = bq25703_set_MaxChargeVoltage_and_Current(CHARGE_CURRENT_FOR_USB_Default);
+            ret = bq25703_set_ChargeCurrent(CHARGE_CURRENT_FOR_USB_Default);
             break;
 
         case C_3A_Current:
         case PD_contract_negotiated:
-            ret = bq25703_set_MaxChargeVoltage_and_Current(CHARGE_CURRENT_FOR_PD);
+            ret = bq25703_set_ChargeCurrent(CHARGE_CURRENT_FOR_PD);
             break;
 
     }
@@ -906,12 +972,32 @@ void *bq25703a_chgok_irq_thread(void *arg)
                 //reset the params when AC plug IN
                 batteryManagePara_clear();
 
-                if(get_Chg_OK_Pin_value() == '1')
+                int ret_val;
+                int err_cnt = 0;
+
+                while(get_Chg_OK_Pin_value() == '1')
                 {
-                    if(check_BatteryTemperature_is_in_threshold() == 1)
+                    ret_val = check_BatteryTemperature_is_in_threshold();
+
+                    if(ret_val == 1)
                     {
-                        bq25703_enable_charge();
+                        if(bq25703_enable_charge() == 0)
+                        {
+                            break;
+                        }
                     }
+
+                    if(ret_val == 0)
+                    {
+                        break;
+                    }
+
+                    if(err_cnt++ > 3)
+                    {
+                        break;
+                    }
+
+                    usleep(10*1000);
                 }
             }
         }
