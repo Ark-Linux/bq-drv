@@ -103,6 +103,9 @@ struct BATTERY_MANAAGE_PARA
     unsigned char battery_fully_charged;
     unsigned char need_charge_flag;
 
+    unsigned char stop_charge_flag;
+    unsigned char can_charge_flag;
+
 } batteryManagePara;
 
 
@@ -734,6 +737,9 @@ void batteryManagePara_init(void)
 {
     batteryManagePara.battery_fully_charged = 0;
     batteryManagePara.need_charge_flag = 0;
+
+    batteryManagePara.stop_charge_flag = 0;
+    batteryManagePara.can_charge_flag = 0;
 }
 
 void batteryManagePara_clear(void)
@@ -743,7 +749,7 @@ void batteryManagePara_clear(void)
 }
 
 
-void check_BatteryFullyCharged_handle(void)
+void check_BatteryFullyCharged_Task(void)
 {
     switch(fuelgauge_check_BatteryFullyCharged())
     {
@@ -765,11 +771,14 @@ void check_BatteryFullyCharged_handle(void)
         case 0:
             if(!batteryManagePara.need_charge_flag)
             {
-                if(get_Chg_OK_Pin_value() == '1')
+                if(!batteryManagePara.stop_charge_flag)
                 {
-                    if(bq25703_enable_charge() != 0)
+                    if(get_Chg_OK_Pin_value() == '1')
                     {
-                        return;
+                        if(bq25703_enable_charge() != 0)
+                        {
+                            return;
+                        }
                     }
                 }
             }
@@ -780,6 +789,87 @@ void check_BatteryFullyCharged_handle(void)
 
         default:
             break;
+    }
+}
+
+
+int check_BatteryTemperature_is_in_threshold(void)
+{
+    int battery_temperature;
+
+    battery_temperature = fuelgauge_get_Battery_Temperature();
+    if(battery_temperature == -1)
+    {
+        return -1;
+    }
+
+    if(( battery_temperature < BATTERY_CHARGE_ALLOW_TEMPERATURE_HIGH_THRESHOLD)
+       && (battery_temperature > BATTERY_CHARGE_ALLOW_TEMPERATURE_LOW_THRESHOLD))
+    {
+        printf("battery temperature %d, is in threshold, allow charging!\n",battery_temperature);
+        return 1;
+    }
+
+    return 0;
+}
+
+
+void check_BatteryTemperature_Task(void)
+{
+    //get by fuelgauge IC
+    int battery_temperature;
+    int battery_voltage;
+    int battery_current;
+    int battery_relativeStateOfCharge;
+
+
+    battery_voltage = fuelgauge_get_Battery_Voltage();
+    battery_current = fuelgauge_get_Battery_Current();
+    battery_relativeStateOfCharge = fuelgauge_get_RelativeStateOfCharge();
+
+    battery_temperature = fuelgauge_get_Battery_Temperature();
+    if(battery_temperature == -1)
+    {
+        return;
+    }
+
+    if((battery_temperature >= BATTERY_CHARGE_STOP_TEMPERATURE_HIGH_THRESHOLD)
+       || (battery_temperature <= BATTERY_CHARGE_STOP_TEMPERATURE_LOW_THRESHOLD))
+    {
+        if(!batteryManagePara.stop_charge_flag)
+        {
+            if(bq25703_stop_charge() != 0)
+            {
+                return;
+            }
+
+            printf("battery temperature %d, is over threshold, stop charging!\n",battery_temperature);
+        }
+
+        batteryManagePara.stop_charge_flag = 1;
+        batteryManagePara.can_charge_flag = 0;
+    }
+    else if(( battery_temperature < BATTERY_CHARGE_ALLOW_TEMPERATURE_HIGH_THRESHOLD)
+            && (battery_temperature > BATTERY_CHARGE_ALLOW_TEMPERATURE_LOW_THRESHOLD))
+    {
+        if(!batteryManagePara.can_charge_flag)
+        {
+            if(!batteryManagePara.battery_fully_charged)
+            {
+                if(get_Chg_OK_Pin_value() == '1')
+                {
+                    if(bq25703_enable_charge() != 0)
+                    {
+                        return;
+                    }
+                }
+            }
+
+            printf("battery temperature %d, is in threshold, can charging!\n",battery_temperature);
+        }
+
+        batteryManagePara.stop_charge_flag = 0;
+        batteryManagePara.can_charge_flag = 1;
     }
 }
 
@@ -818,7 +908,10 @@ void *bq25703a_chgok_irq_thread(void *arg)
 
                 if(get_Chg_OK_Pin_value() == '1')
                 {
-                    bq25703_enable_charge();
+                    if(check_BatteryTemperature_is_in_threshold() == 1)
+                    {
+                        bq25703_enable_charge();
+                    }
                 }
             }
         }
@@ -839,13 +932,6 @@ int main(int argc, char* argv[])
 
     int tps65987_port_role;
     int tps65987_TypeC_current_type;
-
-    //get by fuelgauge IC
-    int battery_temperature;
-    int battery_voltage;
-    int battery_current;
-    int battery_relativeStateOfCharge;
-    int battery_absoluteStateOfCharge;
 
     pthread_t thread_check_chgok_ntid;
 
@@ -893,15 +979,11 @@ int main(int argc, char* argv[])
     while(1)
     {
         bq25703a_get_PSYS_and_VBUS(&PSYS_vol, &VBUS_vol);
-
         charge_current_set = bq25703a_get_ChargeCurrent();
 
-        battery_temperature = fuelgauge_get_Battery_Temperature();
-        battery_voltage = fuelgauge_get_Battery_Voltage();
-        battery_current = fuelgauge_get_Battery_Current();
-        battery_relativeStateOfCharge = fuelgauge_get_RelativeStateOfCharge();
+        check_BatteryFullyCharged_Task();
 
-        check_BatteryFullyCharged_handle();
+        check_BatteryTemperature_Task();
 
         printf("\n\n\n");
 
