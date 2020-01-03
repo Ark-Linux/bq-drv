@@ -744,11 +744,13 @@ int bq25703_enable_charge(void)
             break;
         case C_1d5A_Current:
             ret = bq25703_set_ChargeCurrent(CHARGE_CURRENT_FOR_USB_Default);
+            system("adk-message-send 'led_start_pattern{pattern:30}'");
             break;
 
         case C_3A_Current:
         case PD_contract_negotiated:
             ret = bq25703_set_ChargeCurrent(CHARGE_CURRENT_FOR_PD);
+            system("adk-message-send 'led_start_pattern{pattern:30}'");
             break;
 
     }
@@ -766,7 +768,8 @@ int init_Chg_OK_Pin(void)
 
     register_gpiox(pin_number);
     set_direction(pin_number, "in");
-    set_edge(pin_number, "rising");
+    //set_edge(pin_number, "rising");
+    set_edge(pin_number, "both");
 
     sprintf(file_path, "/sys/class/gpio/gpio%d/value", pin_number);
 
@@ -828,6 +831,8 @@ void check_BatteryFullyCharged_Task(void)
                 }
 
                 printf("fully charged, stop charging!\n");
+
+                system("adk-message-send 'led_start_pattern{pattern:31}'");
             }
 
             batteryManagePara.battery_fully_charged = 1;
@@ -891,7 +896,16 @@ void check_BatteryTemperature_Task(void)
 
     battery_voltage = fuelgauge_get_Battery_Voltage();
     battery_current = fuelgauge_get_Battery_Current();
+
     battery_relativeStateOfCharge = fuelgauge_get_RelativeStateOfCharge();
+    if(battery_relativeStateOfCharge != -1)
+    {
+        if(battery_relativeStateOfCharge < 10)
+        {
+            //battery low
+            system("adk-message-send 'led_start_pattern{pattern:32}'");
+        }
+    }
 
     battery_temperature = fuelgauge_get_Battery_Temperature();
     if(battery_temperature == -1)
@@ -969,35 +983,45 @@ void *bq25703a_chgok_irq_thread(void *arg)
 
                 sleep(1); //wait for status to be stable, typical it takes 200ms for VBUS rise from 5V to 15V
 
-                //reset the params when AC plug IN
-                batteryManagePara_clear();
+                unsigned char pin_value = get_Chg_OK_Pin_value();
 
-                int ret_val;
-                int err_cnt = 0;
-
-                while(get_Chg_OK_Pin_value() == '1')
+                //AC unplug
+                if(pin_value == '0')
                 {
-                    ret_val = check_BatteryTemperature_is_in_threshold();
+                    system("adk-message-send 'led_start_pattern{pattern:29}'");
+                }
+                else if(pin_value == '1')
+                {
+                    //reset the params when AC plug in
+                    batteryManagePara_clear();
 
-                    if(ret_val == 1)
+                    int ret_val;
+                    int err_cnt = 0;
+
+                    while(get_Chg_OK_Pin_value() == '1')
                     {
-                        if(bq25703_enable_charge() == 0)
+                        ret_val = check_BatteryTemperature_is_in_threshold();
+
+                        if(ret_val == 1)
+                        {
+                            if(bq25703_enable_charge() == 0)
+                            {
+                                break;
+                            }
+                        }
+
+                        if(ret_val == 0)
                         {
                             break;
                         }
-                    }
 
-                    if(ret_val == 0)
-                    {
-                        break;
-                    }
+                        if(err_cnt++ > 3)
+                        {
+                            break;
+                        }
 
-                    if(err_cnt++ > 3)
-                    {
-                        break;
+                        usleep(10*1000);
                     }
-
-                    usleep(10*1000);
                 }
             }
         }
