@@ -112,6 +112,8 @@ struct BATTERY_MANAAGE_PARA
     unsigned char stop_charge_flag;
     unsigned char can_charge_flag;
 
+    unsigned char adjust_eq_flag;
+
 } batteryManagePara;
 
 
@@ -229,7 +231,7 @@ static int i2c_read(unsigned char addr, unsigned char reg, unsigned char *val, u
 }
 
 
-int bq25703a_i2c_write(unsigned char dev_addr, unsigned char reg, unsigned char *val, unsigned char data_len)
+static int bq25703a_i2c_write(unsigned char dev_addr, unsigned char reg, unsigned char *val, unsigned char data_len)
 {
     unsigned char buf[80] = {0};
     int i;
@@ -251,10 +253,11 @@ int bq25703a_i2c_write(unsigned char dev_addr, unsigned char reg, unsigned char 
 }
 
 
-int bq25703a_i2c_read(unsigned char addr, unsigned char reg, unsigned char *val, unsigned char len)
+static int bq25703a_i2c_read(unsigned char addr, unsigned char reg, unsigned char *val, unsigned char len)
 {
     return i2c_read(addr, reg, val, len);
 }
+
 
 
 int bq25703a_otg_function_init()
@@ -809,6 +812,8 @@ void batteryManagePara_init(void)
 
     batteryManagePara.stop_charge_flag = 0;
     batteryManagePara.can_charge_flag = 0;
+
+    batteryManagePara.adjust_eq_flag = 0;
 }
 
 void batteryManagePara_clear(void)
@@ -842,7 +847,7 @@ void check_BatteryFullyCharged_Task(void)
         case 0:
             if(!batteryManagePara.need_charge_flag)
             {
-                if(!batteryManagePara.stop_charge_flag)
+                if(batteryManagePara.can_charge_flag)
                 {
                     if(get_Chg_OK_Pin_value() == '1')
                     {
@@ -864,7 +869,7 @@ void check_BatteryFullyCharged_Task(void)
 }
 
 
-int check_BatteryTemperature_is_in_threshold(void)
+int check_BatteryTemperature_allow_charge(void)
 {
     int battery_temperature;
 
@@ -874,10 +879,66 @@ int check_BatteryTemperature_is_in_threshold(void)
         return -1;
     }
 
+    if(batteryTemperature_is_in_ChargeAllowThreshold(battery_temperature))
+    {
+        printf("battery temperature %d, is in threshold, allow charging!\n",battery_temperature);
+        return 1;
+    }
+
+    printf("battery temperature %d, is not in threshold, do not charging!\n",battery_temperature);
+    return 0;
+}
+
+
+int batteryTemperature_is_overstep_ChargeStopThreshold(int battery_temperature)
+{
+    if((battery_temperature >= BATTERY_CHARGE_STOP_TEMPERATURE_HIGH_THRESHOLD)
+       || (battery_temperature <= BATTERY_CHARGE_STOP_TEMPERATURE_LOW_THRESHOLD))
+    {
+        return 1;
+    }
+
+    return 0;
+}
+
+int batteryTemperature_is_in_ChargeAllowThreshold(int battery_temperature)
+{
     if(( battery_temperature < BATTERY_CHARGE_ALLOW_TEMPERATURE_HIGH_THRESHOLD)
        && (battery_temperature > BATTERY_CHARGE_ALLOW_TEMPERATURE_LOW_THRESHOLD))
     {
-        printf("battery temperature %d, is in threshold, allow charging!\n",battery_temperature);
+        return 1;
+    }
+
+    return 0;
+}
+
+int batteryTemperature_is_overstep_AdjustEQThreshold(int battery_temperature)
+{
+    if((battery_temperature >= BATTERY_DISCHARGE_ADJUST_EQ_TEMPERATURE_HIGH_THRESHOLD)
+       && (battery_temperature < BATTERY_DISCHARGE_STOP_TEMPERATURE_HIGH_THRESHOLD))
+    {
+        return 1;
+    }
+
+    return 0;
+}
+
+int batteryTemperature_is_in_RecoveryEQThreshold(int battery_temperature)
+{
+    if(( battery_temperature < BATTERY_DISCHARGE_RECOVERY_EQ_TEMPERATURE_HIGH_THRESHOLD)
+       && (battery_temperature > BATTERY_DISCHARGE_STOP_TEMPERATURE_LOW_THRESHOLD))
+    {
+        return 1;
+    }
+
+    return 0;
+}
+
+int batteryTemperature_is_overstep_DischargeStopThreshold(int battery_temperature)
+{
+    if((battery_temperature >= BATTERY_DISCHARGE_STOP_TEMPERATURE_HIGH_THRESHOLD)
+       || (battery_temperature <= BATTERY_DISCHARGE_STOP_TEMPERATURE_LOW_THRESHOLD))
+    {
         return 1;
     }
 
@@ -885,7 +946,7 @@ int check_BatteryTemperature_is_in_threshold(void)
 }
 
 
-void check_BatteryTemperature_Task(void)
+void batteryTemperature_handle_Task(void)
 {
     //get by fuelgauge IC
     int battery_temperature;
@@ -913,8 +974,7 @@ void check_BatteryTemperature_Task(void)
         return;
     }
 
-    if((battery_temperature >= BATTERY_CHARGE_STOP_TEMPERATURE_HIGH_THRESHOLD)
-       || (battery_temperature <= BATTERY_CHARGE_STOP_TEMPERATURE_LOW_THRESHOLD))
+    if(batteryTemperature_is_overstep_ChargeStopThreshold(battery_temperature))
     {
         if(!batteryManagePara.stop_charge_flag)
         {
@@ -929,8 +989,7 @@ void check_BatteryTemperature_Task(void)
         batteryManagePara.stop_charge_flag = 1;
         batteryManagePara.can_charge_flag = 0;
     }
-    else if(( battery_temperature < BATTERY_CHARGE_ALLOW_TEMPERATURE_HIGH_THRESHOLD)
-            && (battery_temperature > BATTERY_CHARGE_ALLOW_TEMPERATURE_LOW_THRESHOLD))
+    else if(batteryTemperature_is_in_ChargeAllowThreshold(battery_temperature))
     {
         if(!batteryManagePara.can_charge_flag)
         {
@@ -950,6 +1009,32 @@ void check_BatteryTemperature_Task(void)
 
         batteryManagePara.stop_charge_flag = 0;
         batteryManagePara.can_charge_flag = 1;
+    }
+
+    if(batteryTemperature_is_overstep_AdjustEQThreshold(battery_temperature))
+    {
+        if(!batteryManagePara.adjust_eq_flag)
+        {
+            //adjust EQ
+            printf("battery temperature %d, overstep AdjustEQThreshold, adjust EQ\n",battery_temperature);
+        }
+
+        batteryManagePara.adjust_eq_flag = 1;
+    }
+    else if(batteryTemperature_is_in_RecoveryEQThreshold(battery_temperature))
+    {
+        if(batteryManagePara.adjust_eq_flag)
+        {
+            //recovery EQ
+            printf("battery temperature %d, in RecoveryEQThreshold, recovery EQ\n",battery_temperature);
+        }
+
+        batteryManagePara.adjust_eq_flag = 0;
+    }
+
+    if(batteryTemperature_is_overstep_DischargeStopThreshold(battery_temperature))
+    {
+        //power off
     }
 }
 
@@ -1000,24 +1085,27 @@ void *bq25703a_chgok_irq_thread(void *arg)
 
                     while(get_Chg_OK_Pin_value() == '1')
                     {
-                        ret_val = check_BatteryTemperature_is_in_threshold();
+                        ret_val = check_BatteryTemperature_allow_charge();
 
-                        if(ret_val == 1)
+                        if(ret_val != -1)
                         {
-                            if(bq25703_enable_charge() == 0)
+                            if(ret_val == 1)
+                            {
+                                if(bq25703_enable_charge() == 0)
+                                {
+                                    break;
+                                }
+                            }
+
+                            if(ret_val == 0)
                             {
                                 break;
                             }
                         }
-
-                        if(ret_val == 0)
+                        else
                         {
-                            break;
-                        }
-
-                        if(err_cnt++ > 3)
-                        {
-                            break;
+                            if(err_cnt++ > 3)
+                                break;
                         }
 
                         usleep(10*1000);
@@ -1093,7 +1181,7 @@ int main(int argc, char* argv[])
 
         check_BatteryFullyCharged_Task();
 
-        check_BatteryTemperature_Task();
+        batteryTemperature_handle_Task();
 
         printf("\n\n\n");
 

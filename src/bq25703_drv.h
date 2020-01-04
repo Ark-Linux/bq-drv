@@ -14,7 +14,7 @@
 #include <stdint.h>
 
 
-#define CHARGE_CURRENT_1600mA               0x0640 //1600mA
+#define CHARGE_CURRENT_1600mA               0x0600 //1536mA
 #define CHARGE_CURRENT_832mA                0x0340 //832mA
 #define CHARGE_CURRENT_384mA                0x0180 //384mA
 #define CHARGE_CURRENT_0                    0x0000 //0mA
