@@ -35,6 +35,10 @@ int fd_chg_ok_pin;
 struct pollfd fds_chg_ok_pin[1];
 
 
+FILE *fp_batt_temp;
+int log_batt_temp_flag = 0;
+
+
 //BQ25703 REGISTER_ADDR
 #define CHARGE_OPTION_0_WR                              0x00
 #define CHARGE_CURRENT_REGISTER_WR                      0x02
@@ -974,6 +978,19 @@ void batteryTemperature_handle_Task(void)
         return;
     }
 
+    if(log_batt_temp_flag)
+    {
+        //log the battery_temperature for debug
+        if(fprintf(fp_batt_temp, "%d\n", battery_temperature) >= 0)
+        {
+            fflush(fp_batt_temp);
+        }
+        else
+        {
+            printf("write file error");
+        }
+    }
+
     if(batteryTemperature_is_overstep_ChargeStopThreshold(battery_temperature))
     {
         if(!batteryManagePara.stop_charge_flag)
@@ -1138,6 +1155,29 @@ int main(int argc, char* argv[])
         for(i = 0; i < argc; i++)
         {
             printf("Argument %d is %s\n", i, argv[i]);
+        }
+
+        if(strcmp(argv[1],"log_batt_temp") == 0)
+        {
+            fp_batt_temp = fopen("/data/battery_temperature_log","a+");
+            if(fp_batt_temp == NULL)
+            {
+                printf("fail to create battery_temperature_log\n");
+                return -1;
+            }
+
+            log_batt_temp_flag = 1;
+
+            printf("open battery_temperature_log file success\n");
+
+            if(fprintf(fp_batt_temp, "\n\nstart_new_log:\n") >= 0)
+            {
+                fflush(fp_batt_temp);
+            }
+            else
+            {
+                printf("write file error");
+            }
         }
     }
 
