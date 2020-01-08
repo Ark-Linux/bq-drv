@@ -29,6 +29,11 @@ static int fd;
 #define  ManufacturerBlockAccess_REG    0x44
 
 
+//just for test
+static int i2c_read_count = 0;
+static int i2c_read_err_count = 0;
+
+
 //supposed to be Little-endian
 static int check_endian(void)
 {
@@ -158,12 +163,14 @@ static int i2c_read(int fd, unsigned char addr, unsigned char *reg_w_list, unsig
     data.msgs = messages;
     data.nmsgs = 2;
 
+    //i2c_read_count++;
+
     ret = ioctl(fd, I2C_RDWR, &data);
 
     if(ret < 0)
     {
         printf("read ioctl err %d\n",ret);
-
+        //i2c_read_err_count++;
         return ret;
     }
 
@@ -268,6 +275,12 @@ static int bq40z50_ManufacturerBlockAccess_Read(unsigned short r_data_reg)
 
     printf("bq40z50 ManufacturerBlockAccess Read err\n");
     return -1;
+}
+
+
+void check_fuelgauge_iic_readErrCnt(void)
+{
+    printf("read fuelgauge iic err times: %d / %d\n", i2c_read_err_count, i2c_read_count);
 }
 
 

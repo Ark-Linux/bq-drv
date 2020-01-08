@@ -15,6 +15,8 @@
 
 int i2c_open_fuelgauge(void);
 
+void check_fuelgauge_iic_readErrCnt(void);
+
 int fuelgauge_get_Battery_Temperature(void);
 int fuelgauge_get_Battery_Voltage(void);
 int fuelgauge_get_Battery_Current(void);
