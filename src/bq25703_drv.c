@@ -18,6 +18,8 @@
 #include <pthread.h>
 #include <poll.h>
 #include <stdint.h>
+#include <time.h>
+
 
 #include "bq25703_drv.h"
 #include "gpio_config.h"
@@ -73,38 +75,38 @@ int log_batt_temp_flag = 0;
 
 uint16_t CHARGE_REGISTER_DDR_VALUE_BUF[]=
 {
-    /*0*/       CHARGE_OPTION_0_WR,         CHARGE_OPTION_0_SETTING,
-    /*2*/       CHARGE_CURRENT_REGISTER_WR, CHARGE_CURRENT_0,
-    /*4*/       MaxChargeVoltage_REGISTER_WR, MAX_CHARGE_VOLTAGE,
-    /*6*/       OTG_VOLTAGE_REGISTER_WR,    0x0000,
-    /*8*/       OTG_CURRENT_REGISTER_WR,    0x0000,
-    /*10*/      INPUT_VOLTAGE_REGISTER_WR,  INPUT_VOLTAGE_LIMIT_3V2, //here should use the default value:0x0000, means 3200mV
-    /*12*/      MINIMUM_SYSTEM_VOLTAGE_WR,  0x2400, //The charger provides minimum system voltage, means 9216mV
-    /*14*/      INPUT_CURRENT_REGISTER_WR,  0x4100,
-    /*16*/      CHARGE_OPTION_1_WR,         0x0210,
-    /*18*/      CHARGE_OPTION_2_WR,         0x02B7,
-    /*20*/      CHARGE_OPTION_3_WR,         0x0000,
-    /*22*/      PROCHOT_OPTION_0_WR,        0x4A54,
-    /*24*/      PROCHOT_OPTION_1_WR,        0x8120,
-    /*26*/      ADC_OPTION_WR,              0xE0FF
+    CHARGE_OPTION_0_WR,         CHARGE_OPTION_0_SETTING,
+    CHARGE_CURRENT_REGISTER_WR, CHARGE_CURRENT_0,
+    MaxChargeVoltage_REGISTER_WR, MAX_CHARGE_VOLTAGE,
+    OTG_VOLTAGE_REGISTER_WR,    0x0000,
+    OTG_CURRENT_REGISTER_WR,    0x0000,
+    INPUT_VOLTAGE_REGISTER_WR,  INPUT_VOLTAGE_LIMIT_3V2, //here should use the default value:0x0000, means 3200mV
+    MINIMUM_SYSTEM_VOLTAGE_WR,  0x2400, //The charger provides minimum system voltage, means 9216mV
+    INPUT_CURRENT_REGISTER_WR,  0x4100,
+    CHARGE_OPTION_1_WR,         0x0210,
+    CHARGE_OPTION_2_WR,         0x02B7,
+    CHARGE_OPTION_3_WR,         0x0000,
+    PROCHOT_OPTION_0_WR,        0x4A54,
+    PROCHOT_OPTION_1_WR,        0x8120,
+    ADC_OPTION_WR,              0xE0FF
 };
 
 uint16_t OTG_REGISTER_DDR_VALUE_BUF[]=
 {
-    /*0*/       CHARGE_OPTION_0_WR,         0xE20E,
-    /*2*/       CHARGE_CURRENT_REGISTER_WR, 0x0000,
-    /*4*/       MaxChargeVoltage_REGISTER_WR, 0x0000,
-    /*6*/       OTG_VOLTAGE_REGISTER_WR,    0x0200,
-    /*8*/       OTG_CURRENT_REGISTER_WR,    0x0A00,
-    /*10*/      INPUT_VOLTAGE_REGISTER_WR,  0x0000,
-    /*12*/      MINIMUM_SYSTEM_VOLTAGE_WR,  0x0000,
-    /*14*/      INPUT_CURRENT_REGISTER_WR,  0x4100,
-    /*16*/      CHARGE_OPTION_1_WR,         0x0211,
-    /*18*/      CHARGE_OPTION_2_WR,         0x02B7,
-    /*20*/      CHARGE_OPTION_3_WR,         0x1000,
-    /*22*/      PROCHOT_OPTION_0_WR,        0x4A54,
-    /*24*/      PROCHOT_OPTION_1_WR,        0x8120,
-    /*26*/      ADC_OPTION_WR,              0xE0FF
+    CHARGE_OPTION_0_WR,         0xE20E,
+    CHARGE_CURRENT_REGISTER_WR, 0x0000,
+    MaxChargeVoltage_REGISTER_WR, 0x0000,
+    OTG_VOLTAGE_REGISTER_WR,    0x0200,
+    OTG_CURRENT_REGISTER_WR,    0x0A00,
+    INPUT_VOLTAGE_REGISTER_WR,  0x0000,
+    MINIMUM_SYSTEM_VOLTAGE_WR,  0x0000,
+    INPUT_CURRENT_REGISTER_WR,  0x4100,
+    CHARGE_OPTION_1_WR,         0x0211,
+    CHARGE_OPTION_2_WR,         0x02B7,
+    CHARGE_OPTION_3_WR,         0x1000,
+    PROCHOT_OPTION_0_WR,        0x4A54,
+    PROCHOT_OPTION_1_WR,        0x8120,
+    ADC_OPTION_WR,              0xE0FF
 };
 
 
@@ -131,12 +133,12 @@ int i2c_open_bq25703(void)
 
     if(fd_i2c < 0)
     {
-        perror("Unable to open i2c control file");
+        perror("Unable to open bq25703 i2c control file");
 
         return -1;
     }
 
-    printf("open i2c file success %d\n",fd_i2c);
+    printf("open bq25703 i2c file success,fd is %d\n",fd_i2c);
 
     ret = ioctl(fd_i2c, I2C_SLAVE_FORCE, BQ_I2C_ADDR);
     if (ret < 0)
@@ -266,20 +268,17 @@ static int bq25703a_i2c_read(unsigned char addr, unsigned char reg, unsigned cha
 
 int bq25703a_otg_function_init()
 {
-    for (int i = 0; i < sizeof(OTG_REGISTER_DDR_VALUE_BUF) - 1; i ++)
+    int i = 0;
+
+    printf("OTG_REGISTER_DDR_VALUE_BUF:\n");
+    for (i = 0; i < sizeof(OTG_REGISTER_DDR_VALUE_BUF)/sizeof(uint16_t); i = i + 2)
     {
-        if (i%2 == 0)
+        printf("%02x, %04x\n",OTG_REGISTER_DDR_VALUE_BUF[i],OTG_REGISTER_DDR_VALUE_BUF[i+1]);
+
+        if(bq25703a_i2c_write(BQ_I2C_ADDR,OTG_REGISTER_DDR_VALUE_BUF[i],((unsigned char*)(&OTG_REGISTER_DDR_VALUE_BUF[i+1])),2) != 0)
         {
-            if(0 != bq25703a_i2c_write(
-                   BQ_I2C_ADDR,
-                   OTG_REGISTER_DDR_VALUE_BUF[i],
-                   ((unsigned char*)(&OTG_REGISTER_DDR_VALUE_BUF[i+1])),
-                   2)
-              )
-            {
-                printf("write register addr %d eer\n", OTG_REGISTER_DDR_VALUE_BUF[i]);
-                return -1;
-            }
+            printf("write reg %02x eer\n",OTG_REGISTER_DDR_VALUE_BUF[i]);
+            return -1;
         }
     }
 
@@ -323,21 +322,17 @@ int bq25703a_set_otg_vol_and_current()
 
 int bq25703a_charge_function_init()
 {
+    int i = 0;
 
-    for (int i = 0; i < sizeof(CHARGE_REGISTER_DDR_VALUE_BUF) - 1; i ++)
+    printf("CHARGE_REGISTER_DDR_VALUE_BUF:\n");
+    for (i = 0; i < sizeof(CHARGE_REGISTER_DDR_VALUE_BUF)/sizeof(uint16_t); i = i + 2)
     {
-        if (i%2 == 0)
+        printf("%02x, %04x\n",CHARGE_REGISTER_DDR_VALUE_BUF[i],CHARGE_REGISTER_DDR_VALUE_BUF[i+1]);
+
+        if(bq25703a_i2c_write(BQ_I2C_ADDR,CHARGE_REGISTER_DDR_VALUE_BUF[i],((unsigned char*)(&CHARGE_REGISTER_DDR_VALUE_BUF[i+1])),2) != 0)
         {
-            if(0 != bq25703a_i2c_write(
-                   BQ_I2C_ADDR,
-                   CHARGE_REGISTER_DDR_VALUE_BUF[i],
-                   ((unsigned char*)(&CHARGE_REGISTER_DDR_VALUE_BUF[i+1])),
-                   2)
-              )
-            {
-                printf("write %d eer\n",CHARGE_REGISTER_DDR_VALUE_BUF[i]);
-                return -1;
-            }
+            printf("write reg %x eer\n",CHARGE_REGISTER_DDR_VALUE_BUF[i]);
+            return -1;
         }
     }
 
@@ -950,6 +945,40 @@ int batteryTemperature_is_overstep_DischargeStopThreshold(int battery_temperatur
 }
 
 
+int create_batteryTemperture_logFile(void)
+{
+    fp_batt_temp = fopen("/data/battery_temperature_log","a+");
+    if(fp_batt_temp == NULL)
+    {
+        printf("fail to create battery_temperature_log\n");
+        return -1;
+    }
+
+    log_batt_temp_flag = 1;
+
+    printf("open battery_temperature_log file success, fd is %d\n", fileno(fp_batt_temp));
+
+    time_t nSeconds;
+    struct tm * pTM;
+
+    time(&nSeconds);
+    pTM = localtime(&nSeconds);
+
+    if(fprintf(fp_batt_temp, "\n\nstart_new_log: %04d-%02d-%02d %02d:%02d:%02d\n",
+               pTM->tm_year + 1900, pTM->tm_mon + 1, pTM->tm_mday,
+               pTM->tm_hour, pTM->tm_min, pTM->tm_sec) >= 0)
+    {
+        fflush(fp_batt_temp);
+    }
+    else
+    {
+        printf("write file error");
+    }
+
+    return 0;
+}
+
+
 void batteryTemperature_handle_Task(void)
 {
     //get by fuelgauge IC
@@ -1139,6 +1168,7 @@ void *bq25703a_chgok_irq_thread(void *arg)
 int main(int argc, char* argv[])
 {
     int i;
+    int err_cnt = 0;
 
     unsigned int VBUS_vol;
     unsigned int PSYS_vol;
@@ -1159,24 +1189,9 @@ int main(int argc, char* argv[])
 
         if(strcmp(argv[1],"log_batt_temp") == 0)
         {
-            fp_batt_temp = fopen("/data/battery_temperature_log","a+");
-            if(fp_batt_temp == NULL)
+            if(create_batteryTemperture_logFile() != 0)
             {
-                printf("fail to create battery_temperature_log\n");
                 return -1;
-            }
-
-            log_batt_temp_flag = 1;
-
-            printf("open battery_temperature_log file success\n");
-
-            if(fprintf(fp_batt_temp, "\n\nstart_new_log:\n") >= 0)
-            {
-                fflush(fp_batt_temp);
-            }
-            else
-            {
-                printf("write file error");
             }
         }
     }
@@ -1189,7 +1204,15 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    bq25703a_charge_function_init();
+    while(bq25703a_charge_function_init() != 0)
+    {
+        if(err_cnt++ > 3)
+        {
+            return -1;
+        }
+
+        usleep(100*1000);
+    }
 
 
     if(i2c_open_tps65987() != 0)
@@ -1210,6 +1233,7 @@ int main(int argc, char* argv[])
         printf("init Chg_OK_Pin fail!\n");
         return -1;
     }
+
 
     //start irq thread
     pthread_create(&thread_check_chgok_ntid, NULL, bq25703a_chgok_irq_thread, NULL);

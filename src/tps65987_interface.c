@@ -68,12 +68,12 @@ int i2c_open_tps65987(void)
 
     if(fd < 0)
     {
-        perror("Unable to open i2c control file");
+        perror("Unable to open tps65987 i2c control file");
 
         return -1;
     }
 
-    printf("open i2c file success %d\n",fd);
+    printf("open tps65987 i2c file success, fd is %d\n",fd);
 
     ret = ioctl(fd, I2C_SLAVE_FORCE, i2c_addr);
     if (ret < 0)
