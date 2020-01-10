@@ -120,6 +120,12 @@ struct BATTERY_MANAAGE_PARA
 
     unsigned char adjust_eq_flag;
 
+    unsigned char low_battery_flag;
+
+    unsigned char battery_is_charging;
+
+    LED_BATTERY_DISPLAY_STATE led_battery_display_state;
+
 } batteryManagePara;
 
 
@@ -547,7 +553,7 @@ int bq25703a_get_PSYS_and_VBUS(unsigned int *p_PSYS_vol, unsigned int *p_VBUS_vo
     }
     else
     {
-        printf("read VBUS_and_PSYS reg: 0x%02x 0x%02x\n",buf[0],buf[1]);
+        printf("read PSYS_and_VBUS reg: 0x%02x 0x%02x\n",buf[0],buf[1]);
 
         //psys = value*12
         *p_PSYS_vol = buf[0] * 12;
@@ -555,8 +561,8 @@ int bq25703a_get_PSYS_and_VBUS(unsigned int *p_PSYS_vol, unsigned int *p_VBUS_vo
         //vbus = 3200mv + value*64
         *p_VBUS_vol = 3200 + buf[1] * 64;
 
-        printf("VBUS: %dmV\n",*p_VBUS_vol);
-        printf("PSYS: %dmV\n\n",*p_PSYS_vol);
+        printf("PSYS: %dmV\n",*p_PSYS_vol);
+        printf("VBUS: %dmV\n\n",*p_VBUS_vol);
     }
 
     return 0;
@@ -701,7 +707,14 @@ int bq25703_enter_LEARN_Mode(void)
 
 int bq25703_stop_charge(void)
 {
-    return bq25703_set_ChargeCurrent(CHARGE_CURRENT_0);
+    if(bq25703_set_ChargeCurrent(CHARGE_CURRENT_0) == 0)
+    {
+        batteryManagePara.battery_is_charging = 0;
+
+        return 0;
+    }
+
+    return -1;
 }
 
 
@@ -744,15 +757,16 @@ int bq25703_enable_charge(void)
             //disable USB default Current charger, use the Battery to discharge directly to the system
             ret = bq25703_enter_LEARN_Mode();
             break;
+
         case C_1d5A_Current:
             ret = bq25703_set_ChargeCurrent(CHARGE_CURRENT_FOR_USB_Default);
-            system("adk-message-send 'led_start_pattern{pattern:30}'");
+            batteryManagePara.battery_is_charging = 1;
             break;
 
         case C_3A_Current:
         case PD_contract_negotiated:
             ret = bq25703_set_ChargeCurrent(CHARGE_CURRENT_FOR_PD);
-            system("adk-message-send 'led_start_pattern{pattern:30}'");
+            batteryManagePara.battery_is_charging = 1;
             break;
 
     }
@@ -813,6 +827,13 @@ void batteryManagePara_init(void)
     batteryManagePara.can_charge_flag = 0;
 
     batteryManagePara.adjust_eq_flag = 0;
+
+    batteryManagePara.low_battery_flag = 0;
+
+    batteryManagePara.battery_is_charging = 0;
+
+    batteryManagePara.led_battery_display_state = LED_BATTERY_INVALID_VALUE;
+
 }
 
 void batteryManagePara_clear(void)
@@ -835,8 +856,6 @@ void check_BatteryFullyCharged_Task(void)
                 }
 
                 printf("fully charged, stop charging!\n");
-
-                system("adk-message-send 'led_start_pattern{pattern:31}'");
             }
 
             batteryManagePara.battery_fully_charged = 1;
@@ -996,8 +1015,11 @@ void batteryTemperature_handle_Task(void)
     {
         if(battery_relativeStateOfCharge < 10)
         {
-            //battery low
-            system("adk-message-send 'led_start_pattern{pattern:32}'");
+            batteryManagePara.low_battery_flag = 1;
+        }
+        else
+        {
+            batteryManagePara.low_battery_flag = 0;
         }
     }
 
@@ -1084,6 +1106,88 @@ void batteryTemperature_handle_Task(void)
     }
 }
 
+void led_battery_display(LED_BATTERY_DISPLAY_STATE type)
+{
+    switch(type)
+    {
+        case LED_BATTERY_FULLY_CHARGED:
+            system("adk-message-send 'led_start_pattern{pattern:31}'");
+
+            printf("display FULLY_CHARGED\n\n");
+            break;
+
+        case LED_BATTERY_CHARGEING:
+            system("adk-message-send 'led_start_pattern{pattern:30}'");
+
+            printf("display LED_BATTERY_CHARGEING\n\n");
+            break;
+
+        case LED_BATTERY_LOW:
+            system("adk-message-send 'led_start_pattern{pattern:32}'");
+
+            printf("display LED_BATTERY_LOW\n\n");
+            break;
+
+        case LED_BATTERY_OFF:
+            system("adk-message-send 'led_start_pattern{pattern:29}'");
+
+            printf("display LED_BATTERY_OFF\n\n");
+            break;
+
+        default:
+            break;
+
+    }
+}
+
+
+void led_battery_display_handle_Task(void)
+{
+    if(batteryManagePara.battery_is_charging)
+    {
+        if(batteryManagePara.led_battery_display_state != LED_BATTERY_CHARGEING)
+        {
+            led_battery_display(LED_BATTERY_CHARGEING);
+        }
+
+        batteryManagePara.led_battery_display_state = LED_BATTERY_CHARGEING;
+    }
+    else
+    {
+        if(batteryManagePara.battery_fully_charged)
+        {
+            if(batteryManagePara.led_battery_display_state != LED_BATTERY_FULLY_CHARGED)
+            {
+                led_battery_display(LED_BATTERY_FULLY_CHARGED);
+            }
+
+            batteryManagePara.led_battery_display_state = LED_BATTERY_FULLY_CHARGED;
+        }
+
+        if(batteryManagePara.low_battery_flag)
+        {
+            if(batteryManagePara.led_battery_display_state != LED_BATTERY_LOW)
+            {
+                led_battery_display(LED_BATTERY_LOW);
+            }
+
+            batteryManagePara.led_battery_display_state = LED_BATTERY_LOW;
+        }
+
+        if((!batteryManagePara.battery_fully_charged) && (!batteryManagePara.low_battery_flag))
+        {
+            if(batteryManagePara.led_battery_display_state != LED_BATTERY_OFF)
+            {
+                led_battery_display(LED_BATTERY_OFF);
+            }
+
+            batteryManagePara.led_battery_display_state = LED_BATTERY_OFF;
+        }
+
+    }
+
+}
+
 
 void *bq25703a_chgok_irq_thread(void *arg)
 {
@@ -1119,7 +1223,7 @@ void *bq25703a_chgok_irq_thread(void *arg)
                 //AC unplug
                 if(pin_value == '0')
                 {
-                    system("adk-message-send 'led_start_pattern{pattern:29}'");
+                    batteryManagePara.battery_is_charging = 0;
                 }
                 else if(pin_value == '1')
                 {
@@ -1131,27 +1235,30 @@ void *bq25703a_chgok_irq_thread(void *arg)
 
                     while(get_Chg_OK_Pin_value() == '1')
                     {
+                        if(fuelgauge_check_BatteryFullyCharged() == 1)
+                        {
+                            break;
+                        }
+
                         ret_val = check_BatteryTemperature_allow_charge();
 
-                        if(ret_val != -1)
+                        if(ret_val == 1)
                         {
-                            if(ret_val == 1)
-                            {
-                                if(bq25703_enable_charge() == 0)
-                                {
-                                    break;
-                                }
-                            }
-
-                            if(ret_val == 0)
+                            if(bq25703_enable_charge() == 0)
                             {
                                 break;
                             }
                         }
+                        else if(ret_val == 0)
+                        {
+                            break;
+                        }
                         else
                         {
                             if(err_cnt++ > 3)
+                            {
                                 break;
+                            }
                         }
 
                         usleep(10*1000);
@@ -1160,8 +1267,6 @@ void *bq25703a_chgok_irq_thread(void *arg)
             }
         }
     }
-
-    pthread_exit("bq25703a_chgok_irq_thread exit");
 }
 
 
@@ -1246,6 +1351,8 @@ int main(int argc, char* argv[])
         check_BatteryFullyCharged_Task();
 
         batteryTemperature_handle_Task();
+
+        led_battery_display_handle_Task();
 
         printf("\n\n\n");
 
