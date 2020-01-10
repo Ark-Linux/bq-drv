@@ -756,17 +756,30 @@ int bq25703_enable_charge(void)
         case USB_Default_Current:
             //disable USB default Current charger, use the Battery to discharge directly to the system
             ret = bq25703_enter_LEARN_Mode();
+
+            if(ret == 0)
+            {
+                batteryManagePara.battery_is_charging = 0;
+            }
             break;
 
         case C_1d5A_Current:
             ret = bq25703_set_ChargeCurrent(CHARGE_CURRENT_FOR_USB_Default);
-            batteryManagePara.battery_is_charging = 1;
+
+            if(ret == 0)
+            {
+                batteryManagePara.battery_is_charging = 1;
+            }
             break;
 
         case C_3A_Current:
         case PD_contract_negotiated:
             ret = bq25703_set_ChargeCurrent(CHARGE_CURRENT_FOR_PD);
-            batteryManagePara.battery_is_charging = 1;
+
+            if(ret == 0)
+            {
+                batteryManagePara.battery_is_charging = 1;
+            }
             break;
 
     }
@@ -1253,12 +1266,10 @@ void *bq25703a_chgok_irq_thread(void *arg)
                         {
                             break;
                         }
-                        else
+
+                        if(err_cnt++ > 3)
                         {
-                            if(err_cnt++ > 3)
-                            {
-                                break;
-                            }
+                            break;
                         }
 
                         usleep(10*1000);
