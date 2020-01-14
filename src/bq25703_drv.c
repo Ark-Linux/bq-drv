@@ -764,6 +764,13 @@ int bq25703_enable_charge(void)
             break;
 
         case C_1d5A_Current:
+
+            if(batteryManagePara.battery_fully_charged)
+            {
+                ret = 0;
+                break;
+            }
+
             ret = bq25703_set_ChargeCurrent(CHARGE_CURRENT_FOR_USB_Default);
 
             if(ret == 0)
@@ -774,6 +781,13 @@ int bq25703_enable_charge(void)
 
         case C_3A_Current:
         case PD_contract_negotiated:
+
+            if(batteryManagePara.battery_fully_charged)
+            {
+                ret = 0;
+                break;
+            }
+
             ret = bq25703_set_ChargeCurrent(CHARGE_CURRENT_FOR_PD);
 
             if(ret == 0)
@@ -1281,11 +1295,6 @@ void *bq25703a_chgok_irq_thread(void *arg)
 
                     while(get_Chg_OK_Pin_value() == '1')
                     {
-                        if(fuelgauge_check_BatteryFullyCharged() == 1)
-                        {
-                            break;
-                        }
-
                         ret_val = check_BatteryTemperature_allow_charge();
 
                         if(ret_val == 1)
