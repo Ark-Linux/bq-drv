@@ -19,11 +19,9 @@
 #include <poll.h>
 
 
-int set_gpiox_high(int pin_number);
-int set_gpiox_low(int pin_number);
 
-int register_gpiox(int pin_number);
-int unregister_gpiox(int pin_number);
+int export_gpio(int pin_number);
+int unexport_gpio(int pin_number);
 int set_direction(int pin_number, char *direction);
 int set_edge(int pin_number, char *edge);
 int set_value(int pin_number, int value);

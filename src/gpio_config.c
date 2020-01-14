@@ -8,7 +8,7 @@
 
 #include "gpio_config.h"
 
-int register_gpiox(int pin_number)
+int export_gpio(int pin_number)
 {
     FILE *p=NULL;
     char *open_path = "/sys/class/gpio/export";
@@ -16,20 +16,20 @@ int register_gpiox(int pin_number)
     if (p == NULL)
     {
         printf("open '%s' error\n",open_path);
-        return 1;
+        return -1;
     }
 
     if (fprintf(p,"%d",pin_number) < 0)
     {
         printf("write '%s' error\n",open_path);
-        return 1;
+        return -1;
     }
     fclose(p);
 
     return 0;
 }
 
-int unregister_gpiox(int pin_number)
+int unexport_gpio(int pin_number)
 {
     FILE *p=NULL;
     char *open_path = "/sys/class/gpio/unexport";
@@ -37,13 +37,13 @@ int unregister_gpiox(int pin_number)
     if (p == NULL)
     {
         printf("open '%s' error\n",open_path);
-        return 1;
+        return -1;
     }
 
     if (fprintf(p,"%d",pin_number) < 0)
     {
         printf("write '%s' error\n",open_path);
-        return 1;
+        return -1;
     }
     fclose(p);
 
@@ -60,13 +60,13 @@ int set_direction(int pin_number, char *direction)
     if (p == NULL)
     {
         printf("open '%s' error\n",open_path);
-        return 1;
+        return -1;
     }
 
     if (fprintf(p,"%s",direction) < 0)
     {
         printf("write '%s' error\n",open_path);
-        return 1;
+        return -1;
     }
     fclose(p);
 
@@ -83,13 +83,13 @@ int set_edge(int pin_number, char *edge)
     if (p == NULL)
     {
         printf("open '%s' error\n",open_path);
-        return 1;
+        return -1;
     }
 
     if (fprintf(p,"%s",edge) < 0)
     {
         printf("write '%s' error\n",open_path);
-        return 1;
+        return -1;
     }
     fclose(p);
 
@@ -106,58 +106,18 @@ int set_value(int pin_number, int value)
     if (p == NULL)
     {
         printf("open '%s' error\n", open_path);
-        return 1;
+        return -1;
     }
 
     if (fprintf(p,"%d",value) < 0)
     {
         printf("write '%s' error\n", open_path);
-        return 1;
+        return -1;
     }
     fclose(p);
 
     return 0;
 }
 
-int set_gpiox_high(int pin_number)
-{
-    if (register_gpiox(pin_number) == 1)
-    {
-        return 1;
-    }
-    if (set_direction(pin_number, "out") == 1)
-    {
-        return 1;
-    }
-    if (set_value(pin_number, 1) == 1)
-    {
-        return 1;
-    }
-    if (unregister_gpiox(pin_number) == 1)
-    {
-        return 1;
-    }
-    return 0;
-}
 
-int set_gpiox_low(int pin_number)
-{
-    if (register_gpiox(pin_number) == 1)
-    {
-        return 1;
-    }
-    if (set_direction(pin_number, "out") == 1)
-    {
-        return 1;
-    }
-    if (set_value(pin_number, 0) == 1)
-    {
-        return 1;
-    }
-    if (unregister_gpiox(pin_number) == 1)
-    {
-        return 1;
-    }
-    return 0;
-}
 

@@ -795,7 +795,7 @@ int init_Chg_OK_Pin(void)
 
     int pin_number = CHG_OK_PIN;
 
-    register_gpiox(pin_number);
+    export_gpio(pin_number);
     set_direction(pin_number, "in");
     //set_edge(pin_number, "rising");
     set_edge(pin_number, "both");
@@ -851,7 +851,6 @@ void batteryManagePara_init(void)
 
 void batteryManagePara_clear(void)
 {
-    batteryManagePara.battery_fully_charged = 0;
     batteryManagePara.need_charge_flag = 0;
 }
 
@@ -1119,30 +1118,62 @@ void batteryTemperature_handle_Task(void)
     }
 }
 
+
+
+void led_battery_display_init(void)
+{
+    export_gpio(BATTERY_LED_R_PIN);
+    set_direction(BATTERY_LED_R_PIN, "out");
+
+    export_gpio(BATTERY_LED_G_PIN);
+    set_direction(BATTERY_LED_G_PIN, "out");
+
+    export_gpio(BATTERY_LED_B_PIN);
+    set_direction(BATTERY_LED_B_PIN, "out");
+
+}
+
+
 void led_battery_display(LED_BATTERY_DISPLAY_STATE type)
 {
     switch(type)
     {
         case LED_BATTERY_FULLY_CHARGED:
-            system("adk-message-send 'led_start_pattern{pattern:31}'");
+            //system("adk-message-send 'led_start_pattern{pattern:31}'");
 
-            printf("display FULLY_CHARGED\n\n");
+            set_value(BATTERY_LED_R_PIN, 1);
+            set_value(BATTERY_LED_G_PIN, 1);
+            set_value(BATTERY_LED_B_PIN, 1);
+
+            printf("display LED_BATTERY_FULLY_CHARGED\n\n");
             break;
 
         case LED_BATTERY_CHARGEING:
-            system("adk-message-send 'led_start_pattern{pattern:30}'");
+            //system("adk-message-send 'led_start_pattern{pattern:30}'");
+
+            set_value(BATTERY_LED_R_PIN, 0);
+            set_value(BATTERY_LED_G_PIN, 1);
+            set_value(BATTERY_LED_B_PIN, 0);
 
             printf("display LED_BATTERY_CHARGEING\n\n");
             break;
 
         case LED_BATTERY_LOW:
-            system("adk-message-send 'led_start_pattern{pattern:32}'");
+            //system("adk-message-send 'led_start_pattern{pattern:32}'");
+
+            set_value(BATTERY_LED_R_PIN, 1);
+            set_value(BATTERY_LED_G_PIN, 0);
+            set_value(BATTERY_LED_B_PIN, 0);
 
             printf("display LED_BATTERY_LOW\n\n");
             break;
 
         case LED_BATTERY_OFF:
-            system("adk-message-send 'led_start_pattern{pattern:29}'");
+            //system("adk-message-send 'led_start_pattern{pattern:29}'");
+
+            set_value(BATTERY_LED_R_PIN, 0);
+            set_value(BATTERY_LED_G_PIN, 0);
+            set_value(BATTERY_LED_B_PIN, 0);
 
             printf("display LED_BATTERY_OFF\n\n");
             break;
@@ -1154,7 +1185,7 @@ void led_battery_display(LED_BATTERY_DISPLAY_STATE type)
 }
 
 
-void led_battery_display_handle_Task(void)
+void led_battery_display_handle(void)
 {
     if(batteryManagePara.battery_is_charging)
     {
@@ -1227,9 +1258,9 @@ void *bq25703a_chgok_irq_thread(void *arg)
         {
             if(fds_chg_ok_pin[0].revents & POLLPRI)
             {
-                printf("CHRG_OK Rising HIGH, count = %d\n", j++);
+                printf("CHRG_OK Edge detect, count = %d\n", j++);
 
-                sleep(1); //wait for status to be stable, typical it takes 200ms for VBUS rise from 5V to 15V
+                usleep(50*1000); //wait for a while
 
                 unsigned char pin_value = get_Chg_OK_Pin_value();
 
@@ -1240,6 +1271,8 @@ void *bq25703a_chgok_irq_thread(void *arg)
                 }
                 else if(pin_value == '1')
                 {
+                    sleep(1); //wait for status to be stable and tps check, no more shorter
+
                     //reset the params when AC plug in
                     batteryManagePara_clear();
 
@@ -1274,7 +1307,10 @@ void *bq25703a_chgok_irq_thread(void *arg)
 
                         usleep(10*1000);
                     }
+
                 }
+
+                led_battery_display_handle();
             }
         }
     }
@@ -1350,6 +1386,7 @@ int main(int argc, char* argv[])
         return -1;
     }
 
+    led_battery_display_init();
 
     //start irq thread
     pthread_create(&thread_check_chgok_ntid, NULL, bq25703a_chgok_irq_thread, NULL);
@@ -1363,7 +1400,7 @@ int main(int argc, char* argv[])
 
         batteryTemperature_handle_Task();
 
-        led_battery_display_handle_Task();
+        led_battery_display_handle();
 
         printf("\n\n\n");
 
