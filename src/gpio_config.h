@@ -25,7 +25,7 @@ int unexport_gpio(int pin_number);
 int set_direction(int pin_number, char *direction);
 int set_edge(int pin_number, char *edge);
 int set_value(int pin_number, int value);
-
+int set_battery_led(char color, int value);
 
 #endif
 

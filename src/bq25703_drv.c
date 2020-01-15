@@ -1136,14 +1136,21 @@ void batteryTemperature_handle_Task(void)
 
 void led_battery_display_init(void)
 {
-    export_gpio(BATTERY_LED_R_PIN);
+    /*export_gpio(BATTERY_LED_R_PIN);
     set_direction(BATTERY_LED_R_PIN, "out");
 
     export_gpio(BATTERY_LED_G_PIN);
     set_direction(BATTERY_LED_G_PIN, "out");
 
     export_gpio(BATTERY_LED_B_PIN);
-    set_direction(BATTERY_LED_B_PIN, "out");
+    set_direction(BATTERY_LED_B_PIN, "out");*/
+
+    /**********************************************
+     It is init by kernel now:
+     /sys/class/leds/power_led_r/brightness
+     /sys/class/leds/power_led_g/brightness
+     /sys/class/leds/power_led_b/brightness
+    **********************************************/
 
 }
 
@@ -1155,9 +1162,14 @@ void led_battery_display(LED_BATTERY_DISPLAY_STATE type)
         case LED_BATTERY_FULLY_CHARGED:
             //system("adk-message-send 'led_start_pattern{pattern:31}'");
 
-            set_value(BATTERY_LED_R_PIN, 1);
-            set_value(BATTERY_LED_G_PIN, 1);
-            set_value(BATTERY_LED_B_PIN, 1);
+            //set_value(BATTERY_LED_R_PIN, 1);
+            //set_value(BATTERY_LED_G_PIN, 1);
+            //set_value(BATTERY_LED_B_PIN, 1);
+
+            //now the 0/1 is reversed
+            set_battery_led('r', 0);
+            set_battery_led('g', 0);
+            set_battery_led('b', 0);
 
             printf("display LED_BATTERY_FULLY_CHARGED\n\n");
             break;
@@ -1165,9 +1177,13 @@ void led_battery_display(LED_BATTERY_DISPLAY_STATE type)
         case LED_BATTERY_CHARGEING:
             //system("adk-message-send 'led_start_pattern{pattern:30}'");
 
-            set_value(BATTERY_LED_R_PIN, 0);
-            set_value(BATTERY_LED_G_PIN, 1);
-            set_value(BATTERY_LED_B_PIN, 0);
+            //set_value(BATTERY_LED_R_PIN, 0);
+            //set_value(BATTERY_LED_G_PIN, 1);
+            //set_value(BATTERY_LED_B_PIN, 0);
+
+            set_battery_led('r', 1);
+            set_battery_led('g', 0);
+            set_battery_led('b', 1);
 
             printf("display LED_BATTERY_CHARGEING\n\n");
             break;
@@ -1175,9 +1191,13 @@ void led_battery_display(LED_BATTERY_DISPLAY_STATE type)
         case LED_BATTERY_LOW:
             //system("adk-message-send 'led_start_pattern{pattern:32}'");
 
-            set_value(BATTERY_LED_R_PIN, 1);
-            set_value(BATTERY_LED_G_PIN, 0);
-            set_value(BATTERY_LED_B_PIN, 0);
+            //set_value(BATTERY_LED_R_PIN, 1);
+            //set_value(BATTERY_LED_G_PIN, 0);
+            //set_value(BATTERY_LED_B_PIN, 0);
+
+            set_battery_led('r', 0);
+            set_battery_led('g', 1);
+            set_battery_led('b', 1);
 
             printf("display LED_BATTERY_LOW\n\n");
             break;
@@ -1185,9 +1205,13 @@ void led_battery_display(LED_BATTERY_DISPLAY_STATE type)
         case LED_BATTERY_OFF:
             //system("adk-message-send 'led_start_pattern{pattern:29}'");
 
-            set_value(BATTERY_LED_R_PIN, 0);
-            set_value(BATTERY_LED_G_PIN, 0);
-            set_value(BATTERY_LED_B_PIN, 0);
+            //set_value(BATTERY_LED_R_PIN, 0);
+            //set_value(BATTERY_LED_G_PIN, 0);
+            //set_value(BATTERY_LED_B_PIN, 0);
+
+            set_battery_led('r', 1);
+            set_battery_led('g', 1);
+            set_battery_led('b', 1);
 
             printf("display LED_BATTERY_OFF\n\n");
             break;

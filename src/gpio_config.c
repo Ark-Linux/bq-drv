@@ -120,4 +120,28 @@ int set_value(int pin_number, int value)
 }
 
 
+int set_battery_led(char color, int value)
+{
+    FILE *p=NULL;
+    char open_path[64]= {0};
+
+    sprintf(open_path, "/sys/class/leds/power_led_%c/brightness", color);
+    p = fopen(open_path,"w");
+    if (p == NULL)
+    {
+        printf("open '%s' error\n", open_path);
+        return -1;
+    }
+
+    if (fprintf(p,"%d",value) < 0)
+    {
+        printf("write '%s' error\n", open_path);
+        return -1;
+    }
+    fclose(p);
+
+    return 0;
+}
+
+
 

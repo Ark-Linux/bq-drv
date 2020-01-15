@@ -60,9 +60,9 @@
 
 
 //battery led RGB
-#define BATTERY_LED_R_PIN      113
-#define BATTERY_LED_G_PIN      114
-#define BATTERY_LED_B_PIN      109
+//#define BATTERY_LED_R_PIN      113
+//#define BATTERY_LED_G_PIN      114
+//#define BATTERY_LED_B_PIN      109
 
 
 //led display UI
