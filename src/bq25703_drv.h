@@ -59,11 +59,6 @@
 #define BATTERY_DISCHARGE_RECOVERY_EQ_TEMPERATURE_HIGH_THRESHOLD    (2730 + 450)
 
 
-//battery led RGB
-//#define BATTERY_LED_R_PIN      113
-//#define BATTERY_LED_G_PIN      114
-//#define BATTERY_LED_B_PIN      109
-
 
 //led display UI
 typedef enum

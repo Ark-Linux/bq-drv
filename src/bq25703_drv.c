@@ -124,6 +124,8 @@ struct BATTERY_MANAAGE_PARA
 
     unsigned char battery_is_charging;
 
+    unsigned char charger_is_plug_in;
+
     LED_BATTERY_DISPLAY_STATE led_battery_display_state;
 
 } batteryManagePara;
@@ -754,6 +756,9 @@ int bq25703_enable_charge(void)
     switch(tps65987_TypeC_current_type)
     {
         case USB_Default_Current:
+
+            batteryManagePara.charger_is_plug_in = 0;
+
             //disable USB default Current charger, use the Battery to discharge directly to the system
             ret = bq25703_enter_LEARN_Mode();
 
@@ -764,6 +769,8 @@ int bq25703_enable_charge(void)
             break;
 
         case C_1d5A_Current:
+
+            batteryManagePara.charger_is_plug_in = 1;
 
             if(batteryManagePara.battery_fully_charged)
             {
@@ -781,6 +788,8 @@ int bq25703_enable_charge(void)
 
         case C_3A_Current:
         case PD_contract_negotiated:
+
+            batteryManagePara.charger_is_plug_in = 1;
 
             if(batteryManagePara.battery_fully_charged)
             {
@@ -1162,10 +1171,6 @@ void led_battery_display(LED_BATTERY_DISPLAY_STATE type)
         case LED_BATTERY_FULLY_CHARGED:
             //system("adk-message-send 'led_start_pattern{pattern:31}'");
 
-            //set_value(BATTERY_LED_R_PIN, 1);
-            //set_value(BATTERY_LED_G_PIN, 1);
-            //set_value(BATTERY_LED_B_PIN, 1);
-
             //now the 0/1 is reversed
             set_battery_led('r', 0);
             set_battery_led('g', 0);
@@ -1177,10 +1182,6 @@ void led_battery_display(LED_BATTERY_DISPLAY_STATE type)
         case LED_BATTERY_CHARGEING:
             //system("adk-message-send 'led_start_pattern{pattern:30}'");
 
-            //set_value(BATTERY_LED_R_PIN, 0);
-            //set_value(BATTERY_LED_G_PIN, 1);
-            //set_value(BATTERY_LED_B_PIN, 0);
-
             set_battery_led('r', 1);
             set_battery_led('g', 0);
             set_battery_led('b', 1);
@@ -1191,10 +1192,6 @@ void led_battery_display(LED_BATTERY_DISPLAY_STATE type)
         case LED_BATTERY_LOW:
             //system("adk-message-send 'led_start_pattern{pattern:32}'");
 
-            //set_value(BATTERY_LED_R_PIN, 1);
-            //set_value(BATTERY_LED_G_PIN, 0);
-            //set_value(BATTERY_LED_B_PIN, 0);
-
             set_battery_led('r', 0);
             set_battery_led('g', 1);
             set_battery_led('b', 1);
@@ -1204,10 +1201,6 @@ void led_battery_display(LED_BATTERY_DISPLAY_STATE type)
 
         case LED_BATTERY_OFF:
             //system("adk-message-send 'led_start_pattern{pattern:29}'");
-
-            //set_value(BATTERY_LED_R_PIN, 0);
-            //set_value(BATTERY_LED_G_PIN, 0);
-            //set_value(BATTERY_LED_B_PIN, 0);
 
             set_battery_led('r', 1);
             set_battery_led('g', 1);
@@ -1238,12 +1231,25 @@ void led_battery_display_handle(void)
     {
         if(batteryManagePara.battery_fully_charged)
         {
-            if(batteryManagePara.led_battery_display_state != LED_BATTERY_FULLY_CHARGED)
+            if(batteryManagePara.charger_is_plug_in)
             {
-                led_battery_display(LED_BATTERY_FULLY_CHARGED);
-            }
 
-            batteryManagePara.led_battery_display_state = LED_BATTERY_FULLY_CHARGED;
+                if(batteryManagePara.led_battery_display_state != LED_BATTERY_FULLY_CHARGED)
+                {
+                    led_battery_display(LED_BATTERY_FULLY_CHARGED);
+                }
+
+                batteryManagePara.led_battery_display_state = LED_BATTERY_FULLY_CHARGED;
+            }
+            else
+            {
+                if(batteryManagePara.led_battery_display_state != LED_BATTERY_OFF)
+                {
+                    led_battery_display(LED_BATTERY_OFF);
+                }
+
+                batteryManagePara.led_battery_display_state = LED_BATTERY_OFF;
+            }
         }
 
         if(batteryManagePara.low_battery_flag)
@@ -1305,6 +1311,7 @@ void *bq25703a_chgok_irq_thread(void *arg)
                 //AC unplug
                 if(pin_value == '0')
                 {
+                    batteryManagePara.charger_is_plug_in = 0;
                     batteryManagePara.battery_is_charging = 0;
                 }
                 else if(pin_value == '1')
