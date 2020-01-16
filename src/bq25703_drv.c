@@ -868,6 +868,8 @@ void batteryManagePara_init(void)
 
     batteryManagePara.battery_is_charging = 0;
 
+    batteryManagePara.charger_is_plug_in = 0;
+
     batteryManagePara.led_battery_display_state = LED_BATTERY_INVALID_VALUE;
 
 }
