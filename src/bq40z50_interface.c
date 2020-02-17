@@ -133,12 +133,12 @@ static int i2c_write(int fd, unsigned char dev_addr, unsigned char *val, unsigne
         return ret;
     }
 
-    printf("i2c write buf = ");
+    /*printf("i2c write buf = ");
     for(i=0; i< len; i++)
     {
         printf("%02x ",val[i]);
     }
-    printf("\n");
+    printf("\n");*/
 
     return 0;
 }
@@ -176,12 +176,12 @@ static int i2c_read(int fd, unsigned char addr, unsigned char *reg_w_list, unsig
         return ret;
     }
 
-    printf("i2c read buf = ");
+    /*printf("i2c read buf = ");
     for(i = 0; i < len; i++)
     {
         printf("%02x ",val[i]);
     }
-    printf("\n");
+    printf("\n");*/
 
     return 0;
 }
@@ -215,6 +215,13 @@ static int bq40z50_i2c_write(unsigned char dev_addr, unsigned char reg, unsigned
 
     if(i2c_write(fd, dev_addr, buf, data_len+1) == 0)
     {
+        printf("bq40z50 write reg 0x%02x = ",buf[0]);
+        for(i = 1; i < data_len+1; i++)
+        {
+            printf("%02x ",buf[i]);
+        }
+        printf("\n");
+
         return 0;
     }
 
