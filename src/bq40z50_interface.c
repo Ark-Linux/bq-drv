@@ -25,8 +25,10 @@ static unsigned int I2C_ADDR = 0x0B; //7 bit address, (the 8 bit address is 0x16
 
 static int fd;
 
+static unsigned char disable_communication_flag = 0;
 
-#define  ManufacturerBlockAccess_REG    0x44
+#define  ManufacturerAccess_REG         0x00
+#define  ManufacturerData_REG           0x23
 
 
 //just for test
@@ -131,12 +133,12 @@ static int i2c_write(int fd, unsigned char dev_addr, unsigned char *val, unsigne
         return ret;
     }
 
-    /*printf("i2c write buf = ");
+    printf("i2c write buf = ");
     for(i=0; i< len; i++)
     {
         printf("%02x ",val[i]);
     }
-    printf("\n");*/
+    printf("\n");
 
     return 0;
 }
@@ -174,12 +176,12 @@ static int i2c_read(int fd, unsigned char addr, unsigned char *reg_w_list, unsig
         return ret;
     }
 
-    /*printf("i2c read buf = ");
+    printf("i2c read buf = ");
     for(i = 0; i < len; i++)
     {
         printf("%02x ",val[i]);
     }
-    printf("\n");*/
+    printf("\n");
 
     return 0;
 }
@@ -191,6 +193,12 @@ static int bq40z50_i2c_write(unsigned char dev_addr, unsigned char reg, unsigned
     int i;
 
     int ret;
+
+    if(disable_communication_flag)
+    {
+        printf("fuelgauge communication disabled\n");
+        return -1;
+    }
 
     if(data_len + 2 >= 80)
     {
@@ -219,6 +227,12 @@ static int bq40z50_i2c_read(unsigned char addr, unsigned char *reg_w_list, unsig
     unsigned char buf[80] = {0};
     int i;
 
+    if(disable_communication_flag)
+    {
+        printf("fuelgauge communication disabled\n");
+        return -1;
+    }
+
     if(data_len + 1 >= 80)
     {
         printf("data_len_exceed\n");
@@ -242,39 +256,118 @@ static int bq40z50_i2c_read(unsigned char addr, unsigned char *reg_w_list, unsig
 }
 
 
-static int bq40z50_ManufacturerBlockAccess_Send(unsigned short w_data)
+static int bq40z50_ManufacturerAccess_Send(unsigned char* w_data, unsigned int len)
 {
-    int i;
+    printf("bq40z50 ManufacturerAccess Send\n");
 
-    unsigned short Data = w_data;
+    if(bq40z50_i2c_write(I2C_ADDR, ManufacturerAccess_REG, w_data, len) != 0)
+    {
+        printf("bq40z50 ManufacturerAccess Send err\n");
+        return -1;
+    }
 
-    printf("bq40z50 ManufacturerBlockAccess Send 0x%04x\n", Data);
-
-    return bq40z50_i2c_write(I2C_ADDR, ManufacturerBlockAccess_REG, (unsigned char*)(&Data), 2);
+    return 0;
 }
 
 
-static int bq40z50_ManufacturerBlockAccess_Read(unsigned short r_data_reg)
+static int bq40z50_ManufacturerAccess_Read(unsigned char *r_data, unsigned int len)
 {
-    unsigned char write_val[3] = {0};
-    unsigned char read_val[4] = {0};
+    unsigned char write_val[1] = {0};
 
-    unsigned short r_data = 0;
+    write_val[0] = ManufacturerData_REG;
 
-    write_val[0] = ManufacturerBlockAccess_REG;
-    write_val[1] = (unsigned char)(r_data_reg & 0xff);
-    write_val[2] = (unsigned char)(r_data_reg >> 8);
+    printf("bq40z50 ManufacturerAccess Read\n");
 
-    if(bq40z50_i2c_read(I2C_ADDR, write_val, 3, read_val, 4) == 0)
+    if(bq40z50_i2c_read(I2C_ADDR, write_val, 1, r_data, len) != 0)
     {
-        r_data = (read_val[3] << 8) | read_val[2];
-
-        printf("bq40z50 ManufacturerBlockAccess Read Reg:0x%04x, Data:0x%04x\n", r_data_reg, r_data);
-        return r_data;
+        printf("bq40z50 ManufacturerAccess Read err\n");
+        return -1;
     }
 
-    printf("bq40z50 ManufacturerBlockAccess Read err\n");
-    return -1;
+    return 0;
+}
+
+
+void fuelgauge_read_FirmwareVersion(void)
+{
+    unsigned char w_buf[16] = {0};
+    unsigned char r_buf[16] = {0};
+
+    int i;
+
+    w_buf[0] = 0x02;
+    w_buf[1] = 0x00;
+
+    bq40z50_ManufacturerAccess_Send(w_buf, 2);
+    bq40z50_ManufacturerAccess_Read(r_buf, 1 + 11); //the first byte is length
+
+    printf("bq40z50 read FirmwareVersion:");
+    for(i=0; i<16; i++)
+    {
+        printf("%02x",r_buf[i]);
+    }
+    printf("\n\n");
+}
+
+void fuelgauge_read_Chemical_ID(void)
+{
+    unsigned char w_buf[16] = {0};
+    unsigned char r_buf[16] = {0};
+
+    int i;
+
+    w_buf[0] = 0x06;
+    w_buf[1] = 0x00;
+
+    bq40z50_ManufacturerAccess_Send(w_buf, 2);
+    bq40z50_ManufacturerAccess_Read(r_buf, 1 + 2); //the first byte is length
+
+    printf("bq40z50 read Chemical_ID:");
+    for(i=0; i<16; i++)
+    {
+        printf("%02x",r_buf[i]);
+    }
+    printf("\n\n");
+}
+
+
+void fuelgauge_disable_communication(void)
+{
+    disable_communication_flag = 1;
+    printf("fuelgauge disable_communication\n");
+}
+
+void fuelgauge_enable_communication(void)
+{
+    disable_communication_flag = 0;
+    printf("fuelgauge enable_communication\n");
+}
+
+int fuelgauge_battery_enter_shutdown_mode(void)
+{
+    unsigned char w_buf[16] = {0};
+
+    w_buf[0] = 0x10;
+    w_buf[1] = 0x00;
+
+    printf("fuelgauge_battery_enter_shutdown_mode\n");
+
+    //write cmd twice in 4 seconds
+    if(bq40z50_ManufacturerAccess_Send(w_buf, 2) != 0)
+    {
+        printf("first write err\n");
+        return -1;
+    }
+
+    sleep(1);
+
+    if(bq40z50_ManufacturerAccess_Send(w_buf, 2) != 0)
+    {
+        printf("second write err\n");
+        return -1;
+    }
+
+    return 0;
 }
 
 

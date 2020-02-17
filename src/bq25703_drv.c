@@ -1279,6 +1279,76 @@ void led_battery_display_handle(void)
 }
 
 
+int battery_shutdown_mode_check(void)
+{
+    //just fot debug use
+    FILE *fp;
+
+    unsigned char t_buf[64];
+
+    int ret;
+    int i;
+
+    fp = fopen("/tmp/batt_shutdown","r");
+    if(fp == NULL)
+    {
+        //no such file
+        return -1;
+    }
+
+    ret = fread(t_buf,1,3,fp);
+
+    if(ret != 3)
+    {
+        //no valid value
+        return -1;
+    }
+
+    printf("read %d data from file:", ret);
+    for(i=0; i<ret; i++)
+    {
+        printf("%c",t_buf[i]);
+    }
+    printf("\n");
+
+    t_buf[3] = '\0';
+
+    if(strcmp(t_buf,"yes") == 0)
+    {
+        return 1;
+    }
+
+    return 0;
+}
+
+void battery_shutdown_mode_handle(void)
+{
+    if(battery_shutdown_mode_check() == 1)
+    {
+        printf("make battery enter shutdown mode\n");
+
+        if(bq25703_stop_charge() != 0)
+        {
+            return;
+        }
+
+        sleep(1);
+
+        if(fuelgauge_battery_enter_shutdown_mode() != 0)
+        {
+            printf("battery enter_shutdown_mode err\n");
+            return;
+        }
+
+        fuelgauge_disable_communication();
+    }
+    else
+    {
+        fuelgauge_enable_communication();
+    }
+}
+
+
 void *bq25703a_chgok_irq_thread(void *arg)
 {
     int ret;
@@ -1443,6 +1513,8 @@ int main(int argc, char* argv[])
         batteryTemperature_handle_Task();
 
         led_battery_display_handle();
+
+        battery_shutdown_mode_handle();
 
         printf("\n\n\n");
 

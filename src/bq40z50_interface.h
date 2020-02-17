@@ -15,6 +15,13 @@
 
 int i2c_open_fuelgauge(void);
 
+void fuelgauge_read_FirmwareVersion(void);
+void fuelgauge_read_Chemical_ID(void);
+
+void fuelgauge_disable_communication(void);
+void fuelgauge_enable_communication(void);
+int fuelgauge_battery_enter_shutdown_mode(void);
+
 void check_fuelgauge_iic_readErrCnt(void);
 
 int fuelgauge_get_Battery_Temperature(void);
