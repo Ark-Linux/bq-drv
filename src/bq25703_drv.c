@@ -1034,6 +1034,12 @@ int create_batteryTemperture_logFile(void)
     return 0;
 }
 
+int system_power_off(void)
+{
+    int pin_number = 41; //system power pin
+
+    return set_value(pin_number, 1);
+}
 
 void batteryTemperature_handle_Task(void)
 {
@@ -1140,6 +1146,10 @@ void batteryTemperature_handle_Task(void)
     if(batteryTemperature_is_overstep_DischargeStopThreshold(battery_temperature))
     {
         //power off
+        if(system_power_off() != 0)
+        {
+            printf("system power_off fail\n\n");
+        }
     }
 }
 

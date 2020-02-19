@@ -413,7 +413,7 @@ int fuelgauge_get_Battery_Temperature(void)
     int ret;
     int i;
 
-    fp = fopen("/tmp/bat_temp","r");
+    fp = fopen("/tmp/batt_temp","r");
     if(fp == NULL)
     {
         //no test file, return normal temperature
@@ -436,7 +436,7 @@ int fuelgauge_get_Battery_Temperature(void)
     printf("\n");
 
     battery_temperature = atoi(t_buf);
-    printf("get bat temp: %d\n", battery_temperature);
+    printf("get batt temp: %d\n", battery_temperature);
 
     return battery_temperature;*/
 }
