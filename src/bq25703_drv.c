@@ -1438,11 +1438,14 @@ void *bq25703a_chgok_irq_thread(void *arg)
     }
 }
 
+#define TIMER_PIRIOD    5
 
 int main(int argc, char* argv[])
 {
     int i;
     int err_cnt = 0;
+
+    int timer_cnt = TIMER_PIRIOD;
 
     unsigned int VBUS_vol;
     unsigned int PSYS_vol;
@@ -1515,20 +1518,26 @@ int main(int argc, char* argv[])
 
     while(1)
     {
-        bq25703a_get_PSYS_and_VBUS(&PSYS_vol, &VBUS_vol);
-        charge_current_set = bq25703a_get_ChargeCurrent();
+        if(timer_cnt++ >= TIMER_PIRIOD)
+        {
 
-        check_BatteryFullyCharged_Task();
+            timer_cnt = 0;
 
-        batteryTemperature_handle_Task();
+            bq25703a_get_PSYS_and_VBUS(&PSYS_vol, &VBUS_vol);
+            charge_current_set = bq25703a_get_ChargeCurrent();
 
-        led_battery_display_handle();
+            check_BatteryFullyCharged_Task();
+
+            batteryTemperature_handle_Task();
+
+            led_battery_display_handle();
+
+            printf("\n\n\n");
+        }
 
         battery_shutdown_mode_handle();
 
-        printf("\n\n\n");
-
-        sleep(5);
+        sleep(1);
     }
 
     return 0;
