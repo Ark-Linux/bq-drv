@@ -1080,6 +1080,34 @@ int check_Battery_allow_charge(void)
 }
 
 
+int check_TypeC_current_type(void)
+{
+    int tps65987_TypeC_current_type;
+
+    //check TypeC Current type
+    tps65987_TypeC_current_type = tps65987_get_TypeC_Current();
+
+    if(tps65987_TypeC_current_type == -1)
+    {
+        return -1;
+    }
+
+    switch(tps65987_TypeC_current_type)
+    {
+        case USB_Default_Current:
+            batteryManagePara.charger_is_plug_in = 0;
+            break;
+
+        case C_1d5A_Current:
+        case C_3A_Current:
+        case PD_contract_negotiated:
+            batteryManagePara.charger_is_plug_in = 1;
+            break;
+    }
+
+    return 0;
+}
+
 
 int create_batteryTemperture_logFile(void)
 {
@@ -1121,7 +1149,8 @@ int system_power_off(void)
     return set_value(pin_number, 1);
 }
 
-void batteryTemperature_handle_Task(void)
+
+int update_fuelgauge_BatteryInfo(void)
 {
     //get by fuelgauge IC
     int battery_temperature;
@@ -1133,7 +1162,7 @@ void batteryTemperature_handle_Task(void)
     battery_voltage = fuelgauge_get_Battery_Voltage();
     if(battery_voltage == -1)
     {
-        return;
+        return -1;
     }
 
     batteryManagePara.battery_voltage = battery_voltage;
@@ -1156,24 +1185,17 @@ void batteryTemperature_handle_Task(void)
     battery_temperature = fuelgauge_get_Battery_Temperature();
     if(battery_temperature == Temperature_UNVALID)
     {
-        return;
+        return -1;
     }
 
     batteryManagePara.battery_temperature = battery_temperature;
 
-    if(log_batt_temp_flag)
-    {
-        //log the battery_temperature for debug
-        if(fprintf(fp_batt_temp, "%d\n", battery_temperature) >= 0)
-        {
-            fflush(fp_batt_temp);
-        }
-        else
-        {
-            printf("write file error");
-        }
-    }
+    return 0;
+}
 
+
+void batteryCharge_handle_Task(int battery_temperature)
+{
     if(batteryTemperature_is_overstep_ChargeStopThreshold(battery_temperature))
     {
         if(!batteryManagePara.stop_charge_flag)
@@ -1210,7 +1232,11 @@ void batteryTemperature_handle_Task(void)
         batteryManagePara.stop_charge_flag = 0;
         batteryManagePara.can_charge_flag = 1;
     }
+}
 
+
+void batteryDisCharge_handle_Task(int battery_temperature)
+{
     //when Adapter is pluged, no need to adjust EQ
     if(!batteryManagePara.charger_is_plug_in)
     {
@@ -1244,6 +1270,32 @@ void batteryTemperature_handle_Task(void)
             printf("system power_off fail\n\n");
         }
     }
+}
+
+
+void batteryTemperature_handle_Task(void)
+{
+    if(update_fuelgauge_BatteryInfo() != 0)
+    {
+        return;
+    }
+
+    if(log_batt_temp_flag)
+    {
+        //log the battery_temperature for debug
+        if(fprintf(fp_batt_temp, "%d\n", batteryManagePara.battery_temperature) >= 0)
+        {
+            fflush(fp_batt_temp);
+        }
+        else
+        {
+            printf("write file error");
+        }
+    }
+
+    batteryCharge_handle_Task(batteryManagePara.battery_temperature);
+
+    batteryDisCharge_handle_Task(batteryManagePara.battery_temperature);
 }
 
 
@@ -1501,14 +1553,9 @@ void *bq25703a_chgok_irq_thread(void *arg)
                     int tps_err_cnt = 0;
                     int err_cnt = 0;
 
-                    int tps65987_TypeC_current_type;
-
                     while(get_Chg_OK_Pin_value() == '1')
                     {
-                        //check TypeC Current type
-                        tps65987_TypeC_current_type = tps65987_get_TypeC_Current();
-
-                        if(tps65987_TypeC_current_type == -1)
+                        if(check_TypeC_current_type() == -1)
                         {
                             if(tps_err_cnt++ > 3)
                             {
@@ -1518,20 +1565,6 @@ void *bq25703a_chgok_irq_thread(void *arg)
                             usleep(10*1000);
                             continue;
                         }
-
-                        switch(tps65987_TypeC_current_type)
-                        {
-                            case USB_Default_Current:
-                                batteryManagePara.charger_is_plug_in = 0;
-                                break;
-
-                            case C_1d5A_Current:
-                            case C_3A_Current:
-                            case PD_contract_negotiated:
-                                batteryManagePara.charger_is_plug_in = 1;
-                                break;
-                        }
-
 
                         ret_val = check_Battery_allow_charge();
 
