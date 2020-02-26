@@ -389,18 +389,23 @@ int fuelgauge_get_Battery_Temperature(void)
     unsigned char buf[16];
     unsigned char reg;
 
-    unsigned short battery_temperature = 0;
+    unsigned short temp = 0;
+
+    signed short battery_temperature = 0;
 
     //Temperature
     reg = 0x08;
     if(bq40z50_i2c_read(I2C_ADDR, &reg, 1, buf, 2) != 0)
     {
-        return -1;
+        return Temperature_UNVALID;
     }
 
-    battery_temperature = (buf[1]<<8) | buf[0];
+    temp = (buf[1]<<8) | buf[0];
 
-    printf("get battery Temperature %d * 0.1K\n\n", battery_temperature);
+    //convent to °C
+    battery_temperature = temp/10 - 273;
+
+    printf("get battery Temperature %d * 0.1K, %dC\n\n", temp, battery_temperature);
 
     return battery_temperature;
 
@@ -408,7 +413,7 @@ int fuelgauge_get_Battery_Temperature(void)
     //just fot debug use
     /*FILE *fp;
 
-    unsigned char t_buf[64];
+    char t_buf[16];
 
     int ret;
     int i;
@@ -417,16 +422,10 @@ int fuelgauge_get_Battery_Temperature(void)
     if(fp == NULL)
     {
         //no test file, return normal temperature
-        return 3000;
+        return 30;
     }
 
-    ret = fread(t_buf,1,4,fp);
-
-    if(ret != 4)
-    {
-        //no valid value, return normal temperature
-        return 3000;
-    }
+    ret = fread(t_buf,1,16,fp);
 
     printf("read %d data from file:", ret);
     for(i=0; i<ret; i++)

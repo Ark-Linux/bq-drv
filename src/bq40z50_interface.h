@@ -13,6 +13,9 @@
 #include<stdlib.h>
 
 
+#define Temperature_UNVALID     (-1000)
+
+
 int i2c_open_fuelgauge(void);
 
 void fuelgauge_read_FirmwareVersion(void);
