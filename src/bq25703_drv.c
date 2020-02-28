@@ -115,8 +115,10 @@ struct BATTERY_MANAAGE_PARA
     unsigned char battery_fully_charged;
     unsigned char need_charge_flag;
 
-    unsigned char stop_charge_flag;
-    unsigned char can_charge_flag;
+    unsigned char temperature_stop_charge;
+    unsigned char temperature_allow_charge;
+
+    unsigned char charge_level;
 
     unsigned char adjust_eq_flag;
 
@@ -723,25 +725,25 @@ int bq25703_stop_charge(void)
 }
 
 
-int decide_the_ChargeCurrent(void)
+unsigned char decide_the_ChargeLevel(void)
 {
-    int charge_current = CHARGE_CURRENT_0;
+    unsigned char charge_level = 0;
 
     if(batteryManagePara.battery_voltage <= BATTERY_LOW_VOLTAGE_THRESHOLD)
     {
         if((batteryManagePara.battery_temperature >= BATTERY_CHARGE_ALLOW_TEMPERATURE_LOW_THRESHOLD)
            && (batteryManagePara.battery_temperature < BATTERY_LOW_TEMPERATURE_THRESHOLD))
         {
-            charge_current = CHARGE_CURRENT_LEVEL_1;
+            charge_level = 1;
         }
         else if((batteryManagePara.battery_temperature >= BATTERY_LOW_TEMPERATURE_THRESHOLD)
                 && (batteryManagePara.battery_temperature <= BATTERY_CHARGE_ALLOW_TEMPERATURE_HIGH_THRESHOLD))
         {
-            charge_current = CHARGE_CURRENT_LEVEL_2;
+            charge_level = 1;
         }
         else
         {
-            charge_current = CHARGE_CURRENT_0;
+            charge_level = 0;
         }
     }
 
@@ -750,25 +752,59 @@ int decide_the_ChargeCurrent(void)
         if((batteryManagePara.battery_temperature >= BATTERY_CHARGE_ALLOW_TEMPERATURE_LOW_THRESHOLD)
            && (batteryManagePara.battery_temperature < BATTERY_LOW_TEMPERATURE_THRESHOLD))
         {
-            charge_current = CHARGE_CURRENT_LEVEL_2;
+            charge_level = 2;
         }
         else if((batteryManagePara.battery_temperature >= BATTERY_LOW_TEMPERATURE_THRESHOLD)
                 && (batteryManagePara.battery_temperature <= BATTERY_CHARGE_ALLOW_TEMPERATURE_HIGH_THRESHOLD))
         {
-            charge_current = CHARGE_CURRENT_LEVEL_3;
+            charge_level = 3;
         }
         else
         {
-            charge_current = CHARGE_CURRENT_0;
+            charge_level = 0;
         }
     }
 
     if(batteryManagePara.battery_voltage > BATTERY_MAX_VOLTAGE_THRESHOLD)
     {
-        charge_current = CHARGE_CURRENT_0;
+        charge_level = 0;
     }
 
-    printf("decide_the_ChargeCurrent: %dmA by voltage: %dmV, temperature: %dC\n",charge_current, batteryManagePara.battery_voltage, batteryManagePara.battery_temperature);
+    return charge_level;
+}
+
+
+int decide_the_ChargeCurrent(void)
+{
+    unsigned char charge_level = 0;
+
+    int charge_current = CHARGE_CURRENT_0;
+
+    charge_level = decide_the_ChargeLevel();
+
+    printf("\ndecide_the_ChargeLevel: %d by voltage: %dmV, temperature: %dC\n",charge_level, batteryManagePara.battery_voltage, batteryManagePara.battery_temperature);
+
+    switch(charge_level)
+    {
+        case 1:
+            charge_current = CHARGE_CURRENT_LEVEL_1;
+            break;
+
+        case 2:
+            charge_current = CHARGE_CURRENT_LEVEL_2;
+            break;
+
+        case 3:
+            charge_current = CHARGE_CURRENT_LEVEL_3;
+            break;
+
+        case 0:
+        default:
+            charge_current = CHARGE_CURRENT_0;
+            break;
+    }
+
+    printf("decide_the_ChargeCurrent: %dmA\n",charge_current);
 
     return charge_current;
 }
@@ -798,10 +834,15 @@ int bq25703_enable_charge(void)
     //check TypeC Current type to decide the charge current
     tps65987_TypeC_current_type = tps65987_get_TypeC_Current();
 
+    if((batteryManagePara.battery_fully_charged)
+       && (tps65987_TypeC_current_type != USB_Default_Current))
+    {
+        return 0;
+    }
+
     switch(tps65987_TypeC_current_type)
     {
         case USB_Default_Current:
-
             batteryManagePara.charger_is_plug_in = 0;
 
             //disable USB default Current charger, use the Battery to discharge directly to the system
@@ -814,14 +855,7 @@ int bq25703_enable_charge(void)
             break;
 
         case C_1d5A_Current:
-
             batteryManagePara.charger_is_plug_in = 1;
-
-            if(batteryManagePara.battery_fully_charged)
-            {
-                ret = 0;
-                break;
-            }
 
             ret = bq25703_set_ChargeCurrent(CHARGE_CURRENT_FOR_USB_Default);
 
@@ -833,14 +867,7 @@ int bq25703_enable_charge(void)
 
         case C_3A_Current:
         case PD_contract_negotiated:
-
             batteryManagePara.charger_is_plug_in = 1;
-
-            if(batteryManagePara.battery_fully_charged)
-            {
-                ret = 0;
-                break;
-            }
 
             charge_current = decide_the_ChargeCurrent();
 
@@ -910,8 +937,10 @@ void batteryManagePara_init(void)
     batteryManagePara.battery_fully_charged = 0;
     batteryManagePara.need_charge_flag = 0;
 
-    batteryManagePara.stop_charge_flag = 0;
-    batteryManagePara.can_charge_flag = 0;
+    batteryManagePara.temperature_stop_charge = 0;
+    batteryManagePara.temperature_allow_charge = 0;
+
+    batteryManagePara.charge_level = 0;
 
     batteryManagePara.adjust_eq_flag = 0;
 
@@ -931,6 +960,7 @@ void batteryManagePara_init(void)
 void batteryManagePara_clear(void)
 {
     batteryManagePara.need_charge_flag = 0;
+    batteryManagePara.charge_level = 0;
 }
 
 
@@ -951,12 +981,13 @@ void check_BatteryFullyCharged_Task(void)
 
             batteryManagePara.battery_fully_charged = 1;
             batteryManagePara.need_charge_flag = 0;
+            batteryManagePara.charge_level = 0;
             break;
 
         case 0:
             if(!batteryManagePara.need_charge_flag)
             {
-                if(batteryManagePara.can_charge_flag)
+                if(batteryManagePara.temperature_allow_charge)
                 {
                     if(get_Chg_OK_Pin_value() == '1')
                     {
@@ -1198,7 +1229,7 @@ void batteryCharge_handle_Task(int battery_temperature)
 {
     if(batteryTemperature_is_overstep_ChargeStopThreshold(battery_temperature))
     {
-        if(!batteryManagePara.stop_charge_flag)
+        if(!batteryManagePara.temperature_stop_charge)
         {
             if(bq25703_stop_charge() != 0)
             {
@@ -1208,29 +1239,79 @@ void batteryCharge_handle_Task(int battery_temperature)
             printf("battery temperature %d, is over threshold, stop charging!\n",battery_temperature);
         }
 
-        batteryManagePara.stop_charge_flag = 1;
-        batteryManagePara.can_charge_flag = 0;
+        batteryManagePara.temperature_stop_charge = 1;
+        batteryManagePara.temperature_allow_charge = 0;
     }
     else if(batteryTemperature_is_in_ChargeAllowThreshold(battery_temperature))
     {
-        if(!batteryManagePara.can_charge_flag)
+        if(!batteryManagePara.battery_fully_charged)
         {
-            if(!batteryManagePara.battery_fully_charged)
+            if(get_Chg_OK_Pin_value() == '1')
             {
-                if(get_Chg_OK_Pin_value() == '1')
+                unsigned char charge_level = 0;
+
+                charge_level = decide_the_ChargeLevel();
+
+                switch(charge_level)
                 {
-                    if(bq25703_enable_charge() != 0)
-                    {
-                        return;
-                    }
+                    case 1:
+                        if(batteryManagePara.charge_level == 1)
+                        {
+                            break;
+                        }
+
+                        printf("\ndecide_the_ChargeLevel 1 by voltage: %dmV, temperature: %dC\n",batteryManagePara.battery_voltage, batteryManagePara.battery_temperature);
+
+                        if(bq25703_enable_charge() != 0)
+                        {
+                            break;
+                        }
+
+                        batteryManagePara.charge_level = 1;
+                        break;
+
+                    case 2:
+                        if(batteryManagePara.charge_level == 2)
+                        {
+                            break;
+                        }
+
+                        printf("\ndecide_the_ChargeLevel 2 by voltage: %dmV, temperature: %dC\n",batteryManagePara.battery_voltage, batteryManagePara.battery_temperature);
+
+                        if(bq25703_enable_charge() != 0)
+                        {
+                            break;
+                        }
+
+                        batteryManagePara.charge_level = 2;
+                        break;
+
+                    case 3:
+                        if(batteryManagePara.charge_level == 3)
+                        {
+                            break;
+                        }
+
+                        printf("\ndecide_the_ChargeLevel 3 by voltage: %dmV, temperature: %dC\n",batteryManagePara.battery_voltage, batteryManagePara.battery_temperature);
+
+                        if(bq25703_enable_charge() != 0)
+                        {
+                            break;
+                        }
+
+                        batteryManagePara.charge_level = 3;
+                        break;
+
+                    case 0:
+                    default:
+                        batteryManagePara.charge_level = 0;
+                        break;
                 }
             }
-
-            printf("battery temperature %d, is in threshold, can charging!\n",battery_temperature);
         }
 
-        batteryManagePara.stop_charge_flag = 0;
-        batteryManagePara.can_charge_flag = 1;
+        batteryManagePara.temperature_stop_charge = 0;
+        batteryManagePara.temperature_allow_charge = 1;
     }
 }
 
@@ -1540,6 +1621,7 @@ void *bq25703a_chgok_irq_thread(void *arg)
                 {
                     batteryManagePara.charger_is_plug_in = 0;
                     batteryManagePara.battery_is_charging = 0;
+                    batteryManagePara.charge_level = 0;
                 }
                 else if(pin_value == '1')
                 {
