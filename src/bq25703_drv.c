@@ -1407,42 +1407,42 @@ void led_battery_display(LED_BATTERY_DISPLAY_STATE type)
     switch(type)
     {
         case LED_BATTERY_FULLY_CHARGED:
-            //system("adk-message-send 'led_start_pattern{pattern:31}'");
+            system("adk-message-send 'led_start_pattern{pattern:31}'");
 
             //now the 0/1 is reversed
-            set_battery_led('r', 0);
+            /*set_battery_led('r', 0);
             set_battery_led('g', 0);
-            set_battery_led('b', 0);
+            set_battery_led('b', 0);*/
 
             printf("display LED_BATTERY_FULLY_CHARGED\n\n");
             break;
 
         case LED_BATTERY_CHARGEING:
-            //system("adk-message-send 'led_start_pattern{pattern:30}'");
+            system("adk-message-send 'led_start_pattern{pattern:32}'");
 
-            set_battery_led('r', 1);
+            /*set_battery_led('r', 1);
             set_battery_led('g', 0);
-            set_battery_led('b', 1);
+            set_battery_led('b', 1);*/
 
             printf("display LED_BATTERY_CHARGEING\n\n");
             break;
 
         case LED_BATTERY_LOW:
-            //system("adk-message-send 'led_start_pattern{pattern:32}'");
+            system("adk-message-send 'led_start_pattern{pattern:33}'");
 
-            set_battery_led('r', 0);
+            /*set_battery_led('r', 0);
             set_battery_led('g', 1);
-            set_battery_led('b', 1);
+            set_battery_led('b', 1);*/
 
             printf("display LED_BATTERY_LOW\n\n");
             break;
 
         case LED_BATTERY_OFF:
-            //system("adk-message-send 'led_start_pattern{pattern:29}'");
+            system("adk-message-send 'led_start_pattern{pattern:34}'");
 
-            set_battery_led('r', 1);
+            /*set_battery_led('r', 1);
             set_battery_led('g', 1);
-            set_battery_led('b', 1);
+            set_battery_led('b', 1);*/
 
             printf("display LED_BATTERY_OFF\n\n");
             break;
