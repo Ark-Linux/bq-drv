@@ -19,6 +19,7 @@
 #include <poll.h>
 #include <stdint.h>
 #include <time.h>
+#include <linux/input.h>
 
 
 #include "bq25703_drv.h"
@@ -1177,6 +1178,10 @@ int system_power_off(void)
 {
     int pin_number = 41; //system power pin
 
+    export_gpio(pin_number);
+
+    set_direction(pin_number, "out");
+
     return set_value(pin_number, 1);
 }
 
@@ -1383,15 +1388,6 @@ void batteryTemperature_handle_Task(void)
 
 void led_battery_display_init(void)
 {
-    /*export_gpio(BATTERY_LED_R_PIN);
-    set_direction(BATTERY_LED_R_PIN, "out");
-
-    export_gpio(BATTERY_LED_G_PIN);
-    set_direction(BATTERY_LED_G_PIN, "out");
-
-    export_gpio(BATTERY_LED_B_PIN);
-    set_direction(BATTERY_LED_B_PIN, "out");*/
-
     /**********************************************
      It is init by kernel now:
      /sys/class/leds/power_led_r/brightness
@@ -1585,6 +1581,87 @@ void battery_shutdown_mode_handle(void)
 }
 
 
+#define INPUT_DEV "/dev/input/event1"
+
+void *check_gpiokey_thread(void *arg)
+{
+    int fd = 0;
+
+    struct input_event event;
+
+    int ret = 0;
+
+    int key_power_pressed = 0;
+
+    struct timeval tBeginTime, tEndTime;
+    float fCostTime = 0;
+
+    fd = open(INPUT_DEV, O_RDONLY);
+
+    if(fd < 0)
+    {
+        perror("Unable to open INPUT_DEV");
+        return;
+    }
+
+    printf("open INPUT_DEV file success, fd in thread is %d\n",fd);
+
+    while(1)
+    {
+        ret = read(fd, &event, sizeof(event));
+
+        if(ret == -1)
+        {
+            perror("Failed to read.\n");
+            exit(1);
+        }
+
+        if(event.type != EV_SYN)
+        {
+            printf("type:%d, code:%d, value:%d\n", event.type, event.code, event.value);
+
+            if(event.code == KEY_POWER)
+            {
+                switch(event.value)
+                {
+                    case 1:
+                        key_power_pressed = 1;
+
+                        gettimeofday(&tBeginTime, NULL);
+                        break;
+
+                    case 0:
+                        if(key_power_pressed != 1)
+                        {
+                            break;
+                        }
+
+                        key_power_pressed = 0;
+
+                        gettimeofday(&tEndTime, NULL);
+
+                        fCostTime = 1000000*(tEndTime.tv_sec-tBeginTime.tv_sec) + (tEndTime.tv_usec-tBeginTime.tv_usec);
+                        fCostTime /= 1000000;
+
+                        printf("[gettimeofday]Cost Time = %fSec\n", fCostTime);
+
+                        if(fCostTime > 5 && fCostTime < 10)
+                        {
+                            printf("system power_off\n\n");
+
+                            system("adk-message-send 'led_start_pattern{pattern:35}'");
+                            sleep(2);
+                            system_power_off();
+                        }
+
+                        break;
+                }
+            }
+        }
+    }
+}
+
+
 void *bq25703a_chgok_irq_thread(void *arg)
 {
     int ret;
@@ -1697,6 +1774,8 @@ int main(int argc, char* argv[])
 
     pthread_t thread_check_chgok_ntid;
 
+    pthread_t thread_check_gpiokey_ntid;
+
     if(argc > 1)
     {
         for(i = 0; i < argc; i++)
@@ -1755,6 +1834,9 @@ int main(int argc, char* argv[])
 
     //start irq thread
     pthread_create(&thread_check_chgok_ntid, NULL, bq25703a_chgok_irq_thread, NULL);
+
+    //start irq thread
+    pthread_create(&thread_check_gpiokey_ntid, NULL, check_gpiokey_thread, NULL);
 
     while(1)
     {
