@@ -73,6 +73,9 @@ int log_batt_temp_flag = 0;
 
 #define     EN_LEARN                        0x0020
 
+#define     EN_LWPWR                        0x8000
+
+
 
 uint16_t CHARGE_REGISTER_DDR_VALUE_BUF[]=
 {
@@ -708,6 +711,54 @@ int bq25703_enter_LEARN_Mode(void)
     }
 
     printf("\nbq25703 enter LEARN_Mode\n\n\n");
+
+    return 0;
+}
+
+
+int bq25703_enter_LowPowerMode(void)
+{
+    int charge_option_0_setting = CHARGE_OPTION_0_SETTING | EN_LWPWR;
+
+    printf("charge_option_0_setting: %04x\n",charge_option_0_setting);
+
+    if(0 != bq25703a_i2c_write(
+           BQ_I2C_ADDR,
+           CHARGE_OPTION_0_WR,
+           ((unsigned char*)(&charge_option_0_setting)),
+           2)
+      )
+    {
+        printf("write reg eer\n");
+        return -1;
+    }
+
+    printf("\nbq25703 enter Low Power Mode\n\n\n");
+
+    return 0;
+}
+
+
+int bq25703a_get_ChargeOption0_Setting(void)
+{
+    unsigned char buf[2] = {0};
+
+    if(bq25703a_i2c_read(BQ_I2C_ADDR, CHARGE_OPTION_0_WR, buf, 2) != 0)
+    {
+        return -1;
+    }
+
+    printf("get ChargeOption0 setting: 0x%02x%02x\n",buf[1],buf[0]);
+
+    if(buf[1] & 0x80)
+    {
+        printf("Low Power Mode is enabled\n\n");
+    }
+
+    if(buf[0] & 0x20)
+    {
+        printf("LEARN_Mode is enabled\n\n");
+    }
 
     return 0;
 }
@@ -1591,6 +1642,8 @@ void *check_gpiokey_thread(void *arg)
 
     int ret = 0;
 
+    int err_cnt = 0;
+
     int key_power_pressed = 0;
 
     struct timeval tBeginTime, tEndTime;
@@ -1650,6 +1703,13 @@ void *check_gpiokey_thread(void *arg)
                             printf("system power_off\n\n");
 
                             system("adk-message-send 'led_start_pattern{pattern:35}'");
+
+                            for(err_cnt = 0; bq25703_enter_LowPowerMode()!= 0; err_cnt++)
+                            {
+                                if(err_cnt > 3)
+                                    break;
+                            }
+
                             sleep(2);
                             system_power_off();
                         }
@@ -1842,9 +1902,9 @@ int main(int argc, char* argv[])
     {
         if(timer_cnt++ >= TIMER_PIRIOD)
         {
-
             timer_cnt = 0;
 
+            bq25703a_get_ChargeOption0_Setting();
             bq25703a_get_PSYS_and_VBUS(&PSYS_vol, &VBUS_vol);
             charge_current_set = bq25703a_get_ChargeCurrentSetting();
 
