@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <time.h>
 #include <linux/input.h>
+#include <sys/inotify.h>
 
 
 #include "bq25703_drv.h"
@@ -1562,77 +1563,84 @@ void led_battery_display_handle(void)
 }
 
 
-int battery_shutdown_mode_check(void)
+
+
+void *check_batteryShutdownMode_thread(void *arg)
 {
-    //just fot debug use
-    FILE *fp;
-
-    unsigned char t_buf[64];
-
     int ret;
-    int i;
 
-    fp = fopen("/tmp/batt_shutdown","r");
-    if(fp == NULL)
+    int i, length;
+    unsigned char buffer[256];
+
+    int inotifyFd;
+    struct inotify_event *event;
+
+    char *p_name = "batt_shut_down";
+
+    inotifyFd = inotify_init();
+    if(inotifyFd < 0)
     {
-        //no such file
+        perror("Unable to create inotifyFd");
         return -1;
     }
 
-    ret = fread(t_buf,1,3,fp);
+    ret = inotify_add_watch(inotifyFd, "/tmp", IN_CREATE | IN_DELETE);
 
-    if(ret != 3)
+    if(ret < 0)
     {
-        //no valid value
+        close(inotifyFd);
+        perror("Unable to add inotify watch");
         return -1;
     }
 
-    printf("read %d data from file:", ret);
-    for(i=0; i<ret; i++)
+    while(1)
     {
-        printf("%c",t_buf[i]);
-    }
-    printf("\n");
+        length = read(inotifyFd, buffer, 256);
 
-    t_buf[3] = '\0';
-
-    if(strcmp(t_buf,"yes") == 0)
-    {
-        return 1;
-    }
-
-    return 0;
-}
-
-void battery_shutdown_mode_handle(void)
-{
-    if(battery_shutdown_mode_check() == 1)
-    {
-        printf("make battery enter shutdown mode\n");
-
-        if(bq25703_stop_charge() != 0)
+        if(length < 0)
         {
-            return;
+            perror("Failed to read.\n");
+            continue;
         }
 
-        sleep(1);
+        event = (struct inotify_event*)(buffer);
 
-        if(fuelgauge_battery_enter_shutdown_mode() != 0)
+        if(memcmp(event->name, p_name, strlen(p_name)) == 0)
         {
-            printf("battery enter_shutdown_mode err\n");
-            return;
-        }
+            if(event->mask & IN_CREATE)
+            {
+                printf("file %s create\n", event->name);
 
-        fuelgauge_disable_communication();
+                printf("make battery enter shutdown mode\n");
+
+                if(bq25703_stop_charge() != 0)
+                {
+                    continue;
+                }
+
+                usleep(100*1000);
+
+                if(fuelgauge_battery_enter_shutdown_mode() != 0)
+                {
+                    printf("battery enter_shutdown_mode err\n");
+                    continue;
+                }
+
+                fuelgauge_disable_communication();
+            }
+
+            if(event->mask & IN_DELETE)
+            {
+                printf("file %s delete\n", event->name);
+
+                fuelgauge_enable_communication();
+            }
+        }
     }
-    else
-    {
-        fuelgauge_enable_communication();
-    }
+
 }
 
 
-#define INPUT_DEV "/dev/input/event1"
 
 void *check_gpiokey_thread(void *arg)
 {
@@ -1649,7 +1657,7 @@ void *check_gpiokey_thread(void *arg)
     struct timeval tBeginTime, tEndTime;
     float fCostTime = 0;
 
-    fd = open(INPUT_DEV, O_RDONLY);
+    fd = open("/dev/input/event1", O_RDONLY);
 
     if(fd < 0)
     {
@@ -1663,10 +1671,10 @@ void *check_gpiokey_thread(void *arg)
     {
         ret = read(fd, &event, sizeof(event));
 
-        if(ret == -1)
+        if(ret < 0)
         {
             perror("Failed to read.\n");
-            exit(1);
+            continue;
         }
 
         if(event.type != EV_SYN)
@@ -1815,14 +1823,12 @@ void *bq25703a_chgok_irq_thread(void *arg)
     }
 }
 
-#define TIMER_PIRIOD    5
+
 
 int main(int argc, char* argv[])
 {
     int i;
     int err_cnt = 0;
-
-    int timer_cnt = TIMER_PIRIOD;
 
     unsigned int VBUS_vol;
     unsigned int PSYS_vol;
@@ -1835,6 +1841,8 @@ int main(int argc, char* argv[])
     pthread_t thread_check_chgok_ntid;
 
     pthread_t thread_check_gpiokey_ntid;
+
+    pthread_t thread_check_batteryShutdownMode_ntid;
 
     if(argc > 1)
     {
@@ -1892,34 +1900,28 @@ int main(int argc, char* argv[])
 
     led_battery_display_init();
 
-    //start irq thread
+
     pthread_create(&thread_check_chgok_ntid, NULL, bq25703a_chgok_irq_thread, NULL);
 
-    //start irq thread
     pthread_create(&thread_check_gpiokey_ntid, NULL, check_gpiokey_thread, NULL);
+
+    pthread_create(&thread_check_batteryShutdownMode_ntid, NULL, check_batteryShutdownMode_thread, NULL);
 
     while(1)
     {
-        if(timer_cnt++ >= TIMER_PIRIOD)
-        {
-            timer_cnt = 0;
+        bq25703a_get_ChargeOption0_Setting();
+        bq25703a_get_PSYS_and_VBUS(&PSYS_vol, &VBUS_vol);
+        charge_current_set = bq25703a_get_ChargeCurrentSetting();
 
-            bq25703a_get_ChargeOption0_Setting();
-            bq25703a_get_PSYS_and_VBUS(&PSYS_vol, &VBUS_vol);
-            charge_current_set = bq25703a_get_ChargeCurrentSetting();
+        check_BatteryFullyCharged_Task();
 
-            check_BatteryFullyCharged_Task();
+        batteryTemperature_handle_Task();
 
-            batteryTemperature_handle_Task();
+        led_battery_display_handle();
 
-            led_battery_display_handle();
+        printf("\n\n\n");
 
-            printf("\n\n\n");
-        }
-
-        battery_shutdown_mode_handle();
-
-        sleep(1);
+        sleep(5);
     }
 
     return 0;

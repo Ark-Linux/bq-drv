@@ -347,7 +347,7 @@ void fuelgauge_disable_communication(void)
 void fuelgauge_enable_communication(void)
 {
     disable_communication_flag = 0;
-    //printf("fuelgauge enable_communication\n");
+    printf("fuelgauge enable_communication\n");
 }
 
 int fuelgauge_battery_enter_shutdown_mode(void)
