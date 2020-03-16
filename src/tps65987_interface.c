@@ -497,6 +497,46 @@ int tps65987_get_RXSourceNumValidPDOs(void)
 }
 
 
+int tps65987_get_ActiveContractPDO(void)
+{
+    int i;
+
+    unsigned char PDO_15V_3A[4] = {0x2c, 0xb1, 0x04, 0x00}; //PDO: 15V/3A
+    unsigned char PDO_20V_2d25A[4] = {0xe1, 0x40, 0x06, 0x00}; //PDO: 20V/2.25A
+    unsigned char PDO_20V_3d25A[4] = {0x45, 0x41, 0x16, 0x00}; //PDO: 20V/3.25A
+
+    unsigned char buf[64] = {0};
+
+    if(tps65987_i2c_read(I2C_ADDR, REG_ActiveContractPDO, buf, 6) != 0)
+    {
+        printf("\nget ActiveContractPDO err \n");
+        return -1;
+    }
+
+    printf("\nget ActiveContractPDO = ");
+    for(i = 0; i < 6; i++)
+    {
+        printf("%02x ",buf[i]);
+    }
+    printf("\n");
+
+    if(memcmp(buf, PDO_15V_3A, 4) == 0)
+    {
+        printf("ActiveContractPDO is 15V/3A\n\n");
+    }
+    else if(memcmp(buf, PDO_20V_2d25A, 4) == 0)
+    {
+        printf("ActiveContractPDO is 20V/2.25A\n\n");
+    }
+    else if(memcmp(buf, PDO_20V_3d25A, 4) == 0)
+    {
+        printf("ActiveContractPDO is 20V/3.25A\n\n");
+    }
+
+    return 0;
+}
+
+
 int tps65987_get_TypeC_Current(void)
 {
     s_TPS_Power_Status tps_power_status = {0};

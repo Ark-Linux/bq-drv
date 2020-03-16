@@ -1793,6 +1793,8 @@ void *bq25703a_chgok_irq_thread(void *arg)
                             continue;
                         }
 
+                        tps65987_get_ActiveContractPDO();
+
                         ret_val = check_Battery_allow_charge();
 
                         if(ret_val == 1)

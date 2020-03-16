@@ -15,6 +15,7 @@
 #define  REG_PORTCONFIG                 0x28
 #define  REG_BootFlags                  0x2D
 #define  REG_RX_Source_Capabilities     0x30
+#define  REG_ActiveContractPDO          0x34
 #define  REG_Power_Status               0x3F
 
 
@@ -130,5 +131,6 @@ int ResetPDController(void);
 int tps65987_get_Status(s_TPS_status *p_tps_status);
 int tps65987_get_PortRole(void);
 int tps65987_get_RXSourceNumValidPDOs(void);
+int tps65987_get_ActiveContractPDO(void);
 int tps65987_get_TypeC_Current(void);
 
